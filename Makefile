@@ -1,4 +1,4 @@
 ROOT = .
-TARGETS = mysh
+TARGETS = main
 
 include $(ROOT)/common.mk
