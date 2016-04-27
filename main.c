@@ -8,6 +8,15 @@
 
 #define SYS_PATH ./Documents/test_directory
 
+// Define a struct for stack nodes to track events
+
+typedef struct node {
+  unint32_t mask;
+  char* file_name;
+  struct node* next;
+} stack_node_t;
+  
+
 // Function signatures
 static void handle_events (int fd, int *wd, int argc, char* argv[]); 
 void add_file (char* filename);
@@ -178,8 +187,11 @@ static void handle_events (int fd, int *wd, int argc, char* argv[]) {
         printf("IN_MOVED_FROM: ");
       if (event->mask & IN_MOVED_TO)
         printf("IN_MOVED_TO: ");
-      if (event->mask & IN_MODIFY)
+      if (event->mask & IN_MODIFY) {
+        //
+        //event->name;
         printf("IN_MODIFY: ");
+      }
       if (event->mask & IN_OPEN)
         printf("IN_OPEN: ");
       if (event->mask & IN_CLOSE_WRITE)
