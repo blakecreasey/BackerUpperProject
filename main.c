@@ -78,8 +78,8 @@ int main(int argc, char* argv[]) {
     // Declare array of watch descriptors which hold file descriptors of inotify
     // events
     wd[i] = inotify_add_watch(fd, argv[i],
-                              IN_OPEN | IN_CLOSE | IN_MODIFY | IN_MOVE |
-                              IN_DELETE);
+                              IN_MODIFY | IN_MOVED_TO |
+                              IN_DELETE | IN_CREATE | IN_MOVED_FROM);
     if (wd[i] == -1) {
       fprintf(stderr, "Cannot watch '%s'\n", argv[i]);
       perror("inotify_add_watch");
@@ -88,21 +88,17 @@ int main(int argc, char* argv[]) {
   }
 
   /* Prepare for polling */
-
   nfds = 2;
 
   /* Console input */
-
   fds[0].fd = STDIN_FILENO;
   fds[0].events = POLLIN;
 
   /* Inotify input */
-
   fds[1].fd = fd;
   fds[1].events = POLLIN;
 
   /* Wait for events and/or terminal input */
-
   printf("Listening for events.\n");
   while (1) {
     poll_num = poll(fds, nfds, -1);
@@ -114,25 +110,26 @@ int main(int argc, char* argv[]) {
     }
 
     if (poll_num > 0) {
-
       if (fds[0].revents & POLLIN) {
-
         /* Console input is available. Empty stdin and quit */
-
         while (read(STDIN_FILENO, &buf, 1) > 0 && buf != '\n')
           continue;
         break;
       }
 
       if (fds[1].revents & POLLIN) {
-
         /* Inotify events are available */
-
         handle_events(fd, wd, argc, argv);
       }
     }
-  }
+  } // while
 
+  int back_up_notice = 0;
+  printf("Do you want to backup?, 0 no, 1 yes\n");
+  scanf("%d", &back_up_notice);
+  if (back_up_notice == 1) {
+    printf("it worked!\n");
+  }
   printf("Listening for events stopped.\n");
 
   /* Close inotify file descriptor */
@@ -151,6 +148,8 @@ static void handle_events (int fd, int *wd, int argc, char* argv[]) {
      the inotify file descriptor should have the same alignment as
      struct inotify_event. */
 
+  queue_t* queue = queue_create();
+
   char buf[4096]
     __attribute__ ((aligned(__alignof__(struct inotify_event))));
   const struct inotify_event *event;
@@ -159,11 +158,9 @@ static void handle_events (int fd, int *wd, int argc, char* argv[]) {
   char *ptr;
 
   /* Loop while events can be read from inotify file descriptor. */
-
   for (;;) {
-
+    
     /* Read some events. */
-
     len = read(fd, buf, sizeof buf);
     if (len == -1 && errno != EAGAIN) {
       perror("read");
@@ -173,46 +170,51 @@ static void handle_events (int fd, int *wd, int argc, char* argv[]) {
     /* If the nonblocking read() found no events to read, then
        it returns -1 with errno set to EAGAIN. In that case,
        we exit the loop. */
-
     if (len <= 0)
       break;
 
     /* Loop over all events in the buffer */
-
     for (ptr = buf; ptr < buf + len;
          ptr += sizeof(struct inotify_event) + event->len) {
 
       event = (const struct inotify_event *) ptr;
 
       /* Print event type */
-
-      if (event->mask & IN_DELETE)
+      if (event->mask & IN_DELETE) {
+        queue_put (queue, event->name, IN_DELETE);
         printf("IN_DELETE: ");
-      if (event->mask & IN_CREATE)
+      }
+      if (event->mask & IN_CREATE) {
+        queue_put (queue, event->name, IN_CREATE);
         printf("IN_CREATE: ");
-      if (event->mask & IN_DELETE_SELF)
-        printf("IN_DELETE_SELF: ");
-      if (event->mask & IN_MOVE_SELF)
-        printf("IN_MOVE_SELF: ");
-      if (event->mask & IN_MOVED_FROM)
+      }
+      /* if (event->mask & IN_DELETE_SELF) */
+      /*   printf("IN_DELETE_SELF: "); */
+      /* if (event->mask & IN_MOVE_SELF) */
+      /*   printf("IN_MOVE_SELF: "); */
+      if (event->mask & IN_MOVED_FROM) {
+        queue_put (queue, event->name, IN_CREATE);
         printf("IN_MOVED_FROM: ");
-      if (event->mask & IN_MOVED_TO)
+      }
+      if (event->mask & IN_MOVED_TO) {
+        queue_put (queue, event->name, IN_DELETE);
         printf("IN_MOVED_TO: ");
+      }
       if (event->mask & IN_MODIFY) {
-        //
-        //event->name;
+        queue_put (queue, event->name, IN_MODIFY);
         printf("IN_MODIFY: ");
       }
-      if (event->mask & IN_OPEN)
-        printf("IN_OPEN: ");
-      if (event->mask & IN_CLOSE_WRITE)
-        printf("IN_CLOSE_WRITE: ");
-      if (event->mask & IN_CLOSE_NOWRITE)
-        printf("IN_CLOSE_NOWRITE: ");
+      /* if (event->mask & IN_OPEN) */
+      /*   printf("IN_OPEN: "); */
+      /* if (event->mask & IN_CLOSE_WRITE) */
+      /*   printf("IN_CLOSE_WRITE: "); */
+      /* if (event->mask & IN_CLOSE_NOWRITE) */
+      /*   printf("IN_CLOSE_NOWRITE: "); */
+
+      printf ("%d/n", (queue_take(queue))->mask);
 
 
       /* Print the name of the watched directory */
-
       for (i = 1; i < argc; ++i) {
         if (wd[i] == event->wd) {
           printf("%s/", argv[i]);
@@ -221,12 +223,10 @@ static void handle_events (int fd, int *wd, int argc, char* argv[]) {
       }
 
       /* Print the name of the file */
-
       if (event->len)
         printf("%s", event->name);
 
       /* Print type of filesystem object */
-
       if (event->mask & IN_ISDIR)
         printf(" [directory]\n");
       else
@@ -259,7 +259,7 @@ queue_t* queue_create() {
   if(q == NULL)
       perror("Malloc failed\n");
   q->head = NULL;
-  q->head->next = NULL;
+  //q->head->next = NULL;
   q->tail = NULL;
   return q;
 }
@@ -267,29 +267,33 @@ queue_t* queue_create() {
 // Put an element at the end of a queue
 void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
   node_t* newNode = (node_t*) malloc(sizeof(node_t));
-  if(newNode == NULL)
-    perror("Malloc failed\n");
   newNode->next = NULL;
   newNode->filename = filename;
   newNode->mask = mask;
-  
-  queue->tail->next = newNode;
-  queue->tail = newNode;
 
   //check if queue is empty
-  if(queue->head->next == NULL) {
-    queue->head->next = newNode;
-  }
+  if(queue->head == NULL && queue->tail == NULL) {
+    queue->head = queue->tail = newNode;
+    return;
+  }  
+  queue->tail->next = newNode;
+  queue->tail = newNode;
 }
 
 // Take an element off the front of a queue
 node_t* queue_take(queue_t* queue) {
-  node_t* tmp = queue->head;
-  if (tmp == NULL) {
+  node_t* node = queue->head;
+  if (queue->head == NULL) {
     return NULL;
+  }  
+  else if (queue->head == queue->tail) {
+    queue->head = queue->tail = NULL;
+    return node;
   }
-  queue->head = tmp->next;
-  return tmp;
+  else {
+    queue->head = queue->head->next;
+    return node;
+  }
 }
 
 
