@@ -6,26 +6,37 @@
 #include <sys/time.h>
 #include <poll.h>
 
+
 #define SYS_PATH ./Documents/test_directory
 
-// Define a struct for stack nodes to track events
-
-typedef struct node {
-  unint32_t mask;
-  char* file_name;
-  struct node* next;
-} stack_node_t;
+// Define a struct for queue nodes to track events
+  typedef struct node {
+    uint32_t mask;
+    const char* filename;
+    struct node* next;
+  } node_t;
+  
+  typedef struct queue {
+    node_t* head;
+    node_t* tail;
+  } queue_t;
   
 
 // Function signatures
 static void handle_events (int fd, int *wd, int argc, char* argv[]); 
 void add_file (char* filename);
 void delete_file (char* filename);
-void change_filename (char* filename, char* new_filename); 
+void change_filename (char* filename, char* new_filename);
+
+queue_t* queue_create();
+void queue_put(queue_t* queue, const char* filename, uint32_t mask);
+node_t* queue_take(queue_t* queue);
 
 // Main function
 // Basis taken from Linux man page for inotify
 int main(int argc, char* argv[]) {
+
+  //Initialize variables
   char buf;
   int fd, i, poll_num;
   int *wd; // Watch descriptor for inotify event
@@ -34,7 +45,7 @@ int main(int argc, char* argv[]) {
                            Fields: int fd -- file descriptor
                                    short events -- requested events
                                    short revents -- returned events */       
-
+  
   // Take in files info from command line
   if (argc < 2) {
     printf("Usage: %s PATH [PATH ...]\n", argv[0]);
@@ -238,7 +249,54 @@ void change_filename (char* filename, char* new_filename){
 
 
 
+
+
+
+/* QUEUE FUNCTIONS */
+// Create a new empty queue
+queue_t* queue_create() {
+  queue_t* q = (queue_t*) malloc(sizeof(queue_t));
+  if(q == NULL)
+      perror("Malloc failed\n");
+  q->head = NULL;
+  q->head->next = NULL;
+  q->tail = NULL;
+  return q;
+}
+
+// Put an element at the end of a queue
+void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
+  node_t* newNode = (node_t*) malloc(sizeof(node_t));
+  if(newNode == NULL)
+    perror("Malloc failed\n");
+  newNode->next = NULL;
+  newNode->filename = filename;
+  newNode->mask = mask;
+  
+  queue->tail->next = newNode;
+  queue->tail = newNode;
+
+  //check if queue is empty
+  if(queue->head->next == NULL) {
+    queue->head->next = newNode;
+  }
+}
+
+// Take an element off the front of a queue
+node_t* queue_take(queue_t* queue) {
+  node_t* tmp = queue->head;
+  if (tmp == NULL) {
+    return NULL;
+  }
+  queue->head = tmp->next;
+  return tmp;
+}
+
+
+
 /*
 Works Cited: 
 http://man7.org/linux/man-pages/man7/inotify.7.html
+queue structs and functions taken from CSC-213 data structures lab also 
+ by Zoe Wolter
  */
