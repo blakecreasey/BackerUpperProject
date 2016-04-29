@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <time.h>
+#include <string.h>
 
 
 #define BACKUP_DIR_PATH "~/Desktop/backups"
@@ -312,8 +314,51 @@ void back_up (queue_t* queue, char* watched) {
   /* write soft links */
   /* then deal with queue, with different functions for different masks */
 
+  // Get time and local time
+  time_t rawtime;   
+  time ( &rawtime );
+  struct tm* tm = localtime ( &rawtime );
+
+  // Malloc space for string version of year, month, etc.
+  char* intstr = malloc (sizeof (char) * 5);
+
+  // Malloc space for directory name of current backup date and time
+  char* date_time_string = calloc (sizeof(char), sizeof (char) * 25 +
+                                   sizeof (BACKUP_DIR_PATH));
+  // Convert int fields of local time (year, month, etc.) to strings
+  // Add string representations of date and time to new backup dir name
+  strcat (date_time_string, BACKUP_DIR_PATH);
+  strcat (date_time_string, "/");
+  sprintf (intstr, "%d", tm->tm_year + 1900);
+  strcat (date_time_string, intstr);
+  strcat (date_time_string, "-");
+  sprintf (intstr, "%d", tm->tm_mon+1);
+  strcat (date_time_string, intstr);
+  strcat (date_time_string, "-");
+  sprintf (intstr, "%d", tm->tm_mday);
+  strcat (date_time_string, intstr);
+  strcat (date_time_string, "--");
+  sprintf (intstr, "%d", tm->tm_hour);
+  strcat (date_time_string, intstr);
+  strcat (date_time_string, ":");
+  sprintf (intstr, "%d", tm->tm_min);
+  strcat (date_time_string, intstr);
+  strcat (date_time_string, ":");
+  sprintf (intstr, "%d", tm->tm_sec);
+  strcat (date_time_string, intstr);
+
+  printf("new dir name: %s\n", date_time_string);
+  
+
+  // Check if our backup directory is empty indicating that this is our
+  // first backup
   if (isDirectoryEmpty) {
-    int status= mkdir(BACKUP_DIR_PATH, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    int status= mkdir(date_time_string
+                      , 0700);
+    //if (status == -1){
+    //perror("mkdir");
+    //exit(EXIT_FAILURE);
+    //}    
   }
 }
 
