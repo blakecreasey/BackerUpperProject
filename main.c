@@ -5,9 +5,13 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <poll.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h>
 
 
-#define SYS_PATH ./Documents/test_directory
+#define BACKUP_DIR_PATH "~/Desktop/backups"
 
 // Define a struct for queue nodes to track events
   typedef struct node {
@@ -23,10 +27,13 @@
   
 
 // Function signatures
-static void handle_events (int fd, int *wd, int argc, char* argv[]); 
+static void handle_events (int fd, int *wd, int argc, char* argv[], queue_t*
+                           queue); 
 void add_file (char* filename);
 void delete_file (char* filename);
 void change_filename (char* filename, char* new_filename);
+void back_up (queue_t* queue, char* watched);
+int isDirectoryEmpty();
 
 queue_t* queue_create();
 void queue_put(queue_t* queue, const char* filename, uint32_t mask);
@@ -98,6 +105,8 @@ int main(int argc, char* argv[]) {
   fds[1].fd = fd;
   fds[1].events = POLLIN;
 
+  queue_t* queue = queue_create();
+
   /* Wait for events and/or terminal input */
   printf("Listening for events.\n");
   while (1) {
@@ -119,7 +128,7 @@ int main(int argc, char* argv[]) {
 
       if (fds[1].revents & POLLIN) {
         /* Inotify events are available */
-        handle_events(fd, wd, argc, argv);
+        handle_events(fd, wd, argc, argv, queue);
       }
     }
   } // while
@@ -129,6 +138,7 @@ int main(int argc, char* argv[]) {
   scanf("%d", &back_up_notice);
   if (back_up_notice == 1) {
     printf("it worked!\n");
+    back_up(queue, argv[1]);
   }
   printf("Listening for events stopped.\n");
 
@@ -141,14 +151,13 @@ int main(int argc, char* argv[]) {
 }
 
 // Method taken from Linux man page
-static void handle_events (int fd, int *wd, int argc, char* argv[]) {
+static void handle_events (int fd, int *wd, int argc, char* argv[],
+                           queue_t* queue) {
   /* Some systems cannot read integer variables if they are not
      properly aligned. On other systems, incorrect alignment may
      decrease performance. Hence, the buffer used for reading from
      the inotify file descriptor should have the same alignment as
      struct inotify_event. */
-
-  queue_t* queue = queue_create();
 
   char buf[4096]
     __attribute__ ((aligned(__alignof__(struct inotify_event))));
@@ -193,11 +202,11 @@ static void handle_events (int fd, int *wd, int argc, char* argv[]) {
       /* if (event->mask & IN_MOVE_SELF) */
       /*   printf("IN_MOVE_SELF: "); */
       if (event->mask & IN_MOVED_FROM) {
-        queue_put (queue, event->name, IN_CREATE);
+        queue_put (queue, event->name, IN_DELETE);
         printf("IN_MOVED_FROM: ");
       }
       if (event->mask & IN_MOVED_TO) {
-        queue_put (queue, event->name, IN_DELETE);
+        queue_put (queue, event->name, IN_CREATE);
         printf("IN_MOVED_TO: ");
       }
       if (event->mask & IN_MODIFY) {
@@ -296,6 +305,35 @@ node_t* queue_take(queue_t* queue) {
   }
 }
 
+void back_up (queue_t* queue, char* watched) {
+  /* first back up? create backup folder and folder for first back up */
+  /* then copy over */
+  /* create_new_dir if is not first back up */
+  /* write soft links */
+  /* then deal with queue, with different functions for different masks */
+
+  if (isDirectoryEmpty) {
+    int status= mkdir(BACKUP_DIR_PATH, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+  }
+}
+
+//taken from http://stackoverflow.com/questions/6383584/check-if-a-directory-is-empty-using-c-on-linux
+int isDirectoryEmpty() {
+  int n = 0;
+  struct dirent *d;
+  DIR *dir = opendir(BACKUP_DIR_PATH);
+  if (dir == NULL) //Not a directory or doesn't exist
+    return 1;
+  while ((d = readdir(dir)) != NULL) {
+    if(++n > 2)
+      break;
+  }
+  closedir(dir);
+  if (n <= 2) //Directory Empty
+    return 1;
+  else
+    return 0;
+}
 
 
 /*
