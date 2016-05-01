@@ -13,7 +13,8 @@
 #include <string.h>
 
 
-#define BACKUP_DIR_PATH "~/Desktop/backups"
+#define BACKUP_DIR_PATH "/home/hardtmad/Desktop/backups"
+#define MAX 100
 
 // Define a struct for queue nodes to track events
   typedef struct node {
@@ -45,6 +46,21 @@ node_t* queue_take(queue_t* queue);
 // Basis taken from Linux man page for inotify
 int main(int argc, char* argv[]) {
 
+  /* // Get environment */
+  /* // http://stackoverflow.com/questions/3616595/why-mkdir-fails-to-work-with-tilde */
+  /* char path[MAX]; */
+  /* char *home = getenv ("HOME"); */
+  /* if (home != NULL) { */
+  /*   snprintf(path, sizeof(path), "%s/new_dir", home); */
+  /*   // now use path in mkdir */
+  /*   mkdir(path, 0700); */
+  /* } */
+
+  /* char* backup_path = (char*)malloc(sizeof(char) * 100); */
+  /* strcat(backup_path, home); */
+  /* strcat(backup_path, "/Desktop/backups"); */
+  /* printf("backup path: %s\n", backup_path); */
+  
   //Initialize variables
   char buf;
   int fd, i, poll_num;
@@ -347,6 +363,9 @@ void back_up (queue_t* queue, char* watched) {
   sprintf (intstr, "%d", tm->tm_sec);
   strcat (date_time_string, intstr);
 
+  int status = mkdir(date_time_string, 0700);
+  if(status == -1)
+    perror("Failed to make a new backup directory");
   printf("new dir name: %s\n", date_time_string);
   
 
