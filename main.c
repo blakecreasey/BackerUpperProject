@@ -42,6 +42,8 @@ node_t* queue_take(queue_t* queue);
 void add_file (char* filename);
 void delete_file (char* filename);
 void change_filename (char* filename, char* new_filename);
+char* create_backup_dir();
+void copy_files (int is_dir, char* source, char* destination);
 
 // Main function
 // Basis taken from Linux man page for inotify
@@ -289,57 +291,68 @@ void back_up (queue_t* queue, char* watched) {
   /* write soft links */
   /* then deal with queue, with different functions for different masks */
 
-  // 0. Check if backup directory is empty.
-  // If yes, then create_backup_dir and make a total copy of the folder
-  // If not, then make soft links backwards to last backup folder with
-  // each file represented
   
   int directory_status = isDirectoryEmpty();
-  
-  if (!directory_status) {    
-    FILE *fp;
-    char path[1035];
-    char command[MAX];
-    
-    strcat (command, "cd ");
-    strcat (command, BACKUP_DIR_PATH);
-    strcat (command, "; ls | tail -1");
 
-    /* Open the command for reading. */
+  //Finds most recent backup if backup folder is not empty
+  if (!directory_status) {
+    char prev_backup[1035]; // The most recent backup folder created
+    FILE *fp;
+    char command[MAX]; // Command for find last backup directory
+    
+    strcat(command, "cd ");
+    strcat(command, BACKUP_DIR_PATH);
+    strcat(command, "; ls | tail -1"); // Create ls command
+
+    printf("command = %s\n", command);
+
+    // Call the ls command and read it from output.
+   
     fp = popen(command, "r");
     if (fp == NULL) {
       printf("Failed to run command\n" );
       exit(1);
     }
-
-    /* Read the output a line at a time - output it. */
-    while (fgets(path, sizeof(path)-1, fp) != NULL) {
+   
+    printf("1\n");
+    // Read the output of our ls command,
+    // which is the most recent backup directory created.
+    while (fgets(prev_backup, 20, fp) != NULL) {
     }
-
-    printf ("%s\n", path);
-
+    printf("prev_backup = %s\n", prev_backup);
+    printf("2\n");
     /* close */
     pclose(fp);
   }
-  
-  create_backup_dir();
 
-  // Directory has 1 element (was empty before we created another folder)
+
+  
+  // Check if backup directory is empty.
+  // If yes, then create_backup_dir and make a total copy of the folder
+  // If not, then make soft links backwards to last backup folder with
+  // each file represented
+  char * backup_dir_path = create_backup_dir();
+
+  // Thus directory has 1 element (was empty before we created another folder)
+  // Copy all elements from the watched directory to the destination
+  // (the backup folder) 
   if (directory_status == 1) {
-    //Copy all contents into backup directory
-    //return;
+    copy_files(1, watched, backup_dir_path);
+    return;
   }
-  // More than 1 backup folder
-   /* Find most recent backup folder */
+  
+  // Otherwise, there is more than 1 backup folder
+
    /* If new file name is found in the old backup, make softlink between the 2 */
    /* Handle all events that happened: modify, new, delete, rename   */
  
 }
 
 
+
 // Function to generate new directory with new name 
 
-int create_backup_dir(){
+char* create_backup_dir(){
   // Malloc space for directory name of current backup date and time
   char* date_time_string = calloc (sizeof(char), sizeof (char) * 25 +
                                    sizeof (BACKUP_DIR_PATH));
@@ -378,8 +391,47 @@ int create_backup_dir(){
   if(status == -1) {
     perror("Failed to make a new backup directory");
     exit(EXIT_FAILURE);
-  } 
+  }
+  return date_time_string;
 }
+
+
+void copy_files (int is_dir, char* source, char* destination) {
+
+  char command[MAX];
+  if (is_dir) 
+    strcat (command, "cp -a /");
+  else
+    strcat (command, "cp /");
+  strcat (command, source);
+  strcat (command, ". /");
+  strcat (command, BACKUP_DIR_PATH);
+  strcat (command, "/");
+  strcat (command, destination);
+  
+  int success = system (command);
+  
+}
+
+
+//taken from http://stackoverflow.com/questions/6383584/check-if-a-directory-is-empty-using-c-on-linux
+int isDirectoryEmpty() {
+  int n = 0;
+  struct dirent *d;
+  DIR *dir = opendir(BACKUP_DIR_PATH);
+  if (dir == NULL) //Not a directory or doesn't exist
+    return 1;
+  while ((d = readdir(dir)) != NULL) {
+    if(++n > 2)
+      break;
+  }
+  closedir(dir);
+  if (n <= 2) //Directory Empty
+    return 1;
+  else
+    return 0;
+}
+
 
 
 /* QUEUE FUNCTIONS */
@@ -429,26 +481,6 @@ node_t* queue_take(queue_t* queue) {
     return node;
   }
 }
-
-
-//taken from http://stackoverflow.com/questions/6383584/check-if-a-directory-is-empty-using-c-on-linux
-int isDirectoryEmpty() {
-  int n = 0;
-  struct dirent *d;
-  DIR *dir = opendir(BACKUP_DIR_PATH);
-  if (dir == NULL) //Not a directory or doesn't exist
-    return 1;
-  while ((d = readdir(dir)) != NULL) {
-    if(++n > 2)
-      break;
-  }
-  closedir(dir);
-  if (n <= 2) //Directory Empty
-    return 1;
-  else
-    return 0;
-}
-
 
 /*
 Works Cited: 
