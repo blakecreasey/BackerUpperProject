@@ -17,16 +17,16 @@
 #define MAX 100
 
 // Define a struct for queue nodes to track events
-  typedef struct node {
-    uint32_t mask;
-    const char* filename;
-    struct node* next;
-  } node_t;
+typedef struct node {
+  uint32_t mask;
+  const char* filename;
+  struct node* next;
+} node_t;
   
-  typedef struct queue {
-    node_t* head;
-    node_t* tail;
-  } queue_t;
+typedef struct queue {
+  node_t* head;
+  node_t* tail;
+} queue_t;
   
 
 // Function signatures
@@ -160,8 +160,8 @@ int main(int argc, char* argv[]) {
   printf("Do you want to backup?, 0 no, 1 yes\n");
   scanf("%d", &back_up_notice);
   if (back_up_notice == 1) {
-    printf("it worked!\n");
-    back_up(queue, argv[1]);
+    printf("argv[1] = %s\n", argv[1]);
+    back_up(queue, argv[1]); //
   }
   printf("Listening for events stopped.\n");
 
@@ -295,11 +295,12 @@ void back_up (queue_t* queue, char* watched) {
   int directory_status = isDirectoryEmpty();
 
   //Finds most recent backup if backup folder is not empty
-  if (!directory_status) {
-    char prev_backup[1035]; // The most recent backup folder created
+  if (directory_status == 0) {
+    char prev_backup[MAX]; // The most recent backup folder created
     FILE *fp;
-    char command[MAX]; // Command for find last backup directory
-    
+    char* command = calloc (sizeof (char), sizeof (char) * MAX);
+
+    // Command for find last backup directory
     strcat(command, "cd ");
     strcat(command, BACKUP_DIR_PATH);
     strcat(command, "; ls | tail -1"); // Create ls command
@@ -313,14 +314,12 @@ void back_up (queue_t* queue, char* watched) {
       printf("Failed to run command\n" );
       exit(1);
     }
-   
-    printf("1\n");
+
     // Read the output of our ls command,
     // which is the most recent backup directory created.
-    while (fgets(prev_backup, 20, fp) != NULL) {
+    while (fgets(prev_backup, MAX, fp) != NULL) {
     }
     printf("prev_backup = %s\n", prev_backup);
-    printf("2\n");
     /* close */
     pclose(fp);
   }
@@ -369,22 +368,22 @@ char* create_backup_dir(){
   // Add string representations of date and time to new backup dir name
   strcat (date_time_string, BACKUP_DIR_PATH);
   strcat (date_time_string, "/");
-  sprintf (intstr, "%d", tm->tm_year + 1900);
+  sprintf (intstr, "%04d", tm->tm_year + 1900);
   strcat (date_time_string, intstr);
   strcat (date_time_string, "-");
-  sprintf (intstr, "%d", tm->tm_mon+1);
+  sprintf (intstr, "%02d", tm->tm_mon+1);
   strcat (date_time_string, intstr);
   strcat (date_time_string, "-");
-  sprintf (intstr, "%d", tm->tm_mday);
+  sprintf (intstr, "%02d", tm->tm_mday);
   strcat (date_time_string, intstr);
   strcat (date_time_string, "--");
-  sprintf (intstr, "%d", tm->tm_hour);
+  sprintf (intstr, "%02d", tm->tm_hour);
   strcat (date_time_string, intstr);
   strcat (date_time_string, ":");
-  sprintf (intstr, "%d", tm->tm_min);
+  sprintf (intstr, "%02d", tm->tm_min);
   strcat (date_time_string, intstr);
   strcat (date_time_string, ":");
-  sprintf (intstr, "%d", tm->tm_sec);
+  sprintf (intstr, "%02d", tm->tm_sec);
   strcat (date_time_string, intstr);
 
   int status = mkdir(date_time_string, 0700);
@@ -397,19 +396,24 @@ char* create_backup_dir(){
 
 
 void copy_files (int is_dir, char* source, char* destination) {
+  
+  char* command = calloc (sizeof (char), sizeof (char) * MAX);
+  if (is_dir) {
+    strcat (command, "cp -a ");
+  }
+  else {
+    strcat (command, "cp ");
+  }
 
-  char command[MAX];
-  if (is_dir) 
-    strcat (command, "cp -a /");
-  else
-    strcat (command, "cp /");
   strcat (command, source);
-  strcat (command, ". /");
-  strcat (command, BACKUP_DIR_PATH);
-  strcat (command, "/");
+  strcat (command, " ");
   strcat (command, destination);
   
   int success = system (command);
+  if (success == -1) {
+    perror ("system");
+    exit (EXIT_FAILURE);
+  }
   
 }
 
