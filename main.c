@@ -32,15 +32,16 @@
 // Function signatures
 static void handle_events (int fd, int *wd, int argc, char* argv[], queue_t*
                            queue); 
-void add_file (char* filename);
-void delete_file (char* filename);
-void change_filename (char* filename, char* new_filename);
 void back_up (queue_t* queue, char* watched);
 int isDirectoryEmpty();
 
 queue_t* queue_create();
 void queue_put(queue_t* queue, const char* filename, uint32_t mask);
 node_t* queue_take(queue_t* queue);
+
+void add_file (char* filename);
+void delete_file (char* filename);
+void change_filename (char* filename, char* new_filename);
 
 // Main function
 // Basis taken from Linux man page for inotify
@@ -60,7 +61,9 @@ int main(int argc, char* argv[]) {
   /* strcat(backup_path, home); */
   /* strcat(backup_path, "/Desktop/backups"); */
   /* printf("backup path: %s\n", backup_path); */
-  
+
+
+
   //Initialize variables
   char buf;
   int fd, i, poll_num;
@@ -168,6 +171,8 @@ int main(int argc, char* argv[]) {
   exit(EXIT_SUCCESS);
 }
 
+
+
 // Method taken from Linux man page
 static void handle_events (int fd, int *wd, int argc, char* argv[],
                            queue_t* queue) {
@@ -240,7 +245,6 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
 
       printf ("%d/n", (queue_take(queue))->mask);
 
-
       /* Print the name of the watched directory */
       for (i = 1; i < argc; ++i) {
         if (wd[i] == event->wd) {
@@ -262,7 +266,9 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
   }
 }
 
-void add_file (char* filename) {
+
+
+void new_file (char* filename) {
 
 }
 
@@ -276,53 +282,6 @@ void change_filename (char* filename, char* new_filename){
 
 
 
-
-
-
-/* QUEUE FUNCTIONS */
-// Create a new empty queue
-queue_t* queue_create() {
-  queue_t* q = (queue_t*) malloc(sizeof(queue_t));
-  if(q == NULL)
-      perror("Malloc failed\n");
-  q->head = NULL;
-  //q->head->next = NULL;
-  q->tail = NULL;
-  return q;
-}
-
-// Put an element at the end of a queue
-void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
-  node_t* newNode = (node_t*) malloc(sizeof(node_t));
-  newNode->next = NULL;
-  newNode->filename = filename;
-  newNode->mask = mask;
-
-  //check if queue is empty
-  if(queue->head == NULL && queue->tail == NULL) {
-    queue->head = queue->tail = newNode;
-    return;
-  }  
-  queue->tail->next = newNode;
-  queue->tail = newNode;
-}
-
-// Take an element off the front of a queue
-node_t* queue_take(queue_t* queue) {
-  node_t* node = queue->head;
-  if (queue->head == NULL) {
-    return NULL;
-  }  
-  else if (queue->head == queue->tail) {
-    queue->head = queue->tail = NULL;
-    return node;
-  }
-  else {
-    queue->head = queue->head->next;
-    return node;
-  }
-}
-
 void back_up (queue_t* queue, char* watched) {
   /* first back up? create backup folder and folder for first back up */
   /* then copy over */
@@ -330,6 +289,61 @@ void back_up (queue_t* queue, char* watched) {
   /* write soft links */
   /* then deal with queue, with different functions for different masks */
 
+  // 0. Check if backup directory is empty.
+  // If yes, then create_backup_dir and make a total copy of the folder
+  // If not, then make soft links backwards to last backup folder with
+  // each file represented
+  
+  int directory_status = isDirectoryEmpty();
+  
+  if (!directory_status) {    
+    FILE *fp;
+    char path[1035];
+    char command[MAX];
+    
+    strcat (command, "cd ");
+    strcat (command, BACKUP_DIR_PATH);
+    strcat (command, "; ls | tail -1");
+
+    /* Open the command for reading. */
+    fp = popen(command, "r");
+    if (fp == NULL) {
+      printf("Failed to run command\n" );
+      exit(1);
+    }
+
+    /* Read the output a line at a time - output it. */
+    while (fgets(path, sizeof(path)-1, fp) != NULL) {
+    }
+
+    printf ("%s\n", path);
+
+    /* close */
+    pclose(fp);
+  }
+  
+  create_backup_dir();
+
+  // Directory has 1 element (was empty before we created another folder)
+  if (directory_status == 1) {
+    //Copy all contents into backup directory
+    //return;
+  }
+  // More than 1 backup folder
+   /* Find most recent backup folder */
+   /* If new file name is found in the old backup, make softlink between the 2 */
+   /* Handle all events that happened: modify, new, delete, rename   */
+ 
+}
+
+
+// Function to generate new directory with new name 
+
+int create_backup_dir(){
+  // Malloc space for directory name of current backup date and time
+  char* date_time_string = calloc (sizeof(char), sizeof (char) * 25 +
+                                   sizeof (BACKUP_DIR_PATH));
+  
   // Get time and local time
   time_t rawtime;   
   time ( &rawtime );
@@ -338,9 +352,6 @@ void back_up (queue_t* queue, char* watched) {
   // Malloc space for string version of year, month, etc.
   char* intstr = malloc (sizeof (char) * 5);
 
-  // Malloc space for directory name of current backup date and time
-  char* date_time_string = calloc (sizeof(char), sizeof (char) * 25 +
-                                   sizeof (BACKUP_DIR_PATH));
   // Convert int fields of local time (year, month, etc.) to strings
   // Add string representations of date and time to new backup dir name
   strcat (date_time_string, BACKUP_DIR_PATH);
@@ -364,22 +375,61 @@ void back_up (queue_t* queue, char* watched) {
   strcat (date_time_string, intstr);
 
   int status = mkdir(date_time_string, 0700);
-  if(status == -1)
+  if(status == -1) {
     perror("Failed to make a new backup directory");
-  printf("new dir name: %s\n", date_time_string);
-  
+    exit(EXIT_FAILURE);
+  } 
+}
 
-  // Check if our backup directory is empty indicating that this is our
-  // first backup
-  if (isDirectoryEmpty) {
-    int status= mkdir(date_time_string
-                      , 0700);
-    //if (status == -1){
-    //perror("mkdir");
-    //exit(EXIT_FAILURE);
-    //}    
+
+/* QUEUE FUNCTIONS */
+// Create a new empty queue
+queue_t* queue_create() {
+  queue_t* q = (queue_t*) malloc(sizeof(queue_t));
+  if(q == NULL)
+      perror("Malloc failed\n");
+  q->head = NULL;
+  //q->head->next = NULL;
+  q->tail = NULL;
+  return q;
+}
+
+
+
+// Put an element at the end of a queue
+void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
+  node_t* newNode = (node_t*) malloc(sizeof(node_t));
+  newNode->next = NULL;
+  newNode->filename = filename;
+  newNode->mask = mask;
+
+  //check if queue is empty
+  if(queue->head == NULL && queue->tail == NULL) {
+    queue->head = queue->tail = newNode;
+    return;
+  }  
+  queue->tail->next = newNode;
+  queue->tail = newNode;
+}
+
+
+
+// Take an element off the front of a queue
+node_t* queue_take(queue_t* queue) {
+  node_t* node = queue->head;
+  if (queue->head == NULL) {
+    return NULL;
+  }  
+  else if (queue->head == queue->tail) {
+    queue->head = queue->tail = NULL;
+    return node;
+  }
+  else {
+    queue->head = queue->head->next;
+    return node;
   }
 }
+
 
 //taken from http://stackoverflow.com/questions/6383584/check-if-a-directory-is-empty-using-c-on-linux
 int isDirectoryEmpty() {
