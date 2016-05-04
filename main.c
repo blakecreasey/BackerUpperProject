@@ -42,7 +42,7 @@ node_t* queue_take(queue_t* queue);
 char* create_backup_dir();
 void create_soft_links(char* backup_folder_path, char* prev_backup_file);
 void copy_files (int is_dir, char* source, char* destination);
-void handle_queue(char* backup_folder_path, queue_t* queue);
+void handle_queue(char* backup_folder_path, queue_t* queue, char* watched);
 
 // Main function
 // Basis taken from Linux man page for inotify
@@ -244,7 +244,7 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
       /* if (event->mask & IN_CLOSE_NOWRITE) */
       /*   printf("IN_CLOSE_NOWRITE: "); */
 
-      printf ("%d/n", (queue_take(queue))->mask);
+      //printf ("%d/n", (queue_take(queue))->mask);
 
       /* Print the name of the watched directory */
       for (i = 1; i < argc; ++i) {
@@ -330,7 +330,7 @@ void back_up (queue_t* queue, char* watched) {
    /* If new file name is found in the old backup, make softlink between the 2 */
   create_soft_links(backup_folder_path, prev_backup);
    /* Handle all events that happened: modify, new, delete, rename   */
-  handle_queue(backup_folder_path, queue);
+  handle_queue(backup_folder_path, queue, watched);
   
 }
 
@@ -351,7 +351,7 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
   d = opendir(prev_dir_path);
   
   if (d == NULL) {
-    printf ("NULL\n");
+    //printf ("NULL\n");
     perror ("opendir");
     exit (EXIT_FAILURE);
   }
@@ -376,11 +376,7 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
             strcat (old_file, prev_backup_file);
             strcat (old_file, "/");
             strcat (old_file, dir->d_name);
-
-            printf ("%s\n", old_file);
-            printf ("%s  ", dir->d_name);
-            printf ("%s\n", backup_folder_path);
-            
+             
             int success = symlink (old_file, new_file_in_backup);
             if (success == -1) {
               perror ("symlink");
@@ -394,8 +390,34 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
     }
 }
 
-void handle_queue(char* backup_folder_path, queue_t* queue) {
+void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
+  // Dequeue events until the queue is empty
+  while (queue != NULL) {
+    node_t* event = queue_take(queue);
 
+    if (event == NULL)
+      return;
+    // If create event, copy the file from the source to the new backup dir
+    if (event->mask & IN_CREATE) {
+      char* copy_file_path = calloc(sizeof(char), sizeof(char) * MAX);
+      printf ("in handle queue %s\n", event->filename);
+      strcat (copy_file_path, watched);
+      strcat (copy_file_path, "/");
+      strcat (copy_file_path, event->filename);
+
+      copy_files (0, copy_file_path, backup_folder_path);
+      //handle the event that the file to copy been deleted. 
+    }
+    // If delete event, remove the softlink from the folder 
+    if (event->mask & IN_DELETE) {
+        
+    }
+    // If modify event
+    // Copy over file IF the file does exist as a soft link
+    if (event->mask & IN_MODIFY) {
+    
+    }
+  }
 }
 
 
