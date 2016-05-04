@@ -13,7 +13,7 @@
 #include <string.h>
 
 
-#define BACKUP_DIR_PATH "/home/hardtmad/Desktop/backups"
+#define BACKUP_DIR_PATH "/home/fayjulia/Desktop/backups"
 #define MAX 100
 
 // Define a struct for queue nodes to track events
@@ -39,11 +39,10 @@ queue_t* queue_create();
 void queue_put(queue_t* queue, const char* filename, uint32_t mask);
 node_t* queue_take(queue_t* queue);
 
-void add_file (char* filename);
-void delete_file (char* filename);
-void change_filename (char* filename, char* new_filename);
 char* create_backup_dir();
+void create_soft_links(char* backup_folder_path, char* prev_backup);
 void copy_files (int is_dir, char* source, char* destination);
+void handle_queue(char* backup_folder_path, queue_t* queue);
 
 // Main function
 // Basis taken from Linux man page for inotify
@@ -160,7 +159,7 @@ int main(int argc, char* argv[]) {
   printf("Do you want to backup?, 0 no, 1 yes\n");
   scanf("%d", &back_up_notice);
   if (back_up_notice == 1) {
-    printf("argv[1] = %s\n", argv[1]);
+    //printf("argv[1] = %s\n", argv[1]);
     back_up(queue, argv[1]); //
   }
   printf("Listening for events stopped.\n");
@@ -268,35 +267,20 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
   }
 }
 
-
-
-void new_file (char* filename) {
-
-}
-
-void delete_file (char* filename) {
-
-}
-
-void change_filename (char* filename, char* new_filename){
-
-}
-
-
-
 void back_up (queue_t* queue, char* watched) {
   /* first back up? create backup folder and folder for first back up */
   /* then copy over */
   /* create_new_dir if is not first back up */
   /* write soft links */
   /* then deal with queue, with different functions for different masks */
-
   
   int directory_status = isDirectoryEmpty();
 
+  char prev_backup[MAX];
+  
   //Finds most recent backup if backup folder is not empty
   if (directory_status == 0) {
-    char prev_backup[MAX]; // The most recent backup folder created
+     // The most recent backup folder created
     FILE *fp;
     char* command = calloc (sizeof (char), sizeof (char) * MAX);
 
@@ -305,7 +289,7 @@ void back_up (queue_t* queue, char* watched) {
     strcat(command, BACKUP_DIR_PATH);
     strcat(command, "; ls | tail -1"); // Create ls command
 
-    printf("command = %s\n", command);
+    //printf("command = %s\n", command);
 
     // Call the ls command and read it from output.
    
@@ -319,34 +303,74 @@ void back_up (queue_t* queue, char* watched) {
     // which is the most recent backup directory created.
     while (fgets(prev_backup, MAX, fp) != NULL) {
     }
-    printf("prev_backup = %s\n", prev_backup);
+    
+    strcpy (strtok (prev_backup, "\n"), prev_backup);
+    
+    //printf("prev_backup = %s\n", prev_backup);
     /* close */
     pclose(fp);
   }
-
-
   
   // Check if backup directory is empty.
   // If yes, then create_backup_dir and make a total copy of the folder
   // If not, then make soft links backwards to last backup folder with
   // each file represented
-  char * backup_dir_path = create_backup_dir();
+  char * backup_folder_path = create_backup_dir();
 
   // Thus directory has 1 element (was empty before we created another folder)
   // Copy all elements from the watched directory to the destination
   // (the backup folder) 
   if (directory_status == 1) {
-    copy_files(1, watched, backup_dir_path);
+    copy_files(1, watched, backup_folder_path);
     return;
   }
   
   // Otherwise, there is more than 1 backup folder
 
    /* If new file name is found in the old backup, make softlink between the 2 */
+  create_soft_links(backup_folder_path, prev_backup);
    /* Handle all events that happened: modify, new, delete, rename   */
- 
+  handle_queue(backup_folder_path, queue);
+  
 }
 
+
+void create_soft_links(char* backup_folder_path, char* prev_backup) {
+  //http://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory
+  //-\in-a-c-program
+  DIR           *d;
+  struct dirent *dir;
+  
+  char* prev_path = calloc (sizeof (char), sizeof (char) * MAX);
+  
+  strcat (prev_path, BACKUP_DIR_PATH);
+  strcat (prev_path, "/");
+  strcat (prev_path, prev_backup);
+  strcat (prev_path, "/");
+  printf("%s\n", prev_path);
+  
+  d = opendir(prev_path);
+  
+  if (d == NULL) {
+    printf ("NULL\n");
+    perror ("opendir");
+    exit (EXIT_FAILURE);
+  }
+  
+  if (d)
+  {
+    while ((dir = readdir(d)) != NULL)
+    {
+      printf("%s\n", dir->d_name);
+    }
+
+    closedir(d);
+  }
+}
+
+void handle_queue(char* backup_folder_path, queue_t* queue) {
+
+}
 
 
 // Function to generate new directory with new name 
