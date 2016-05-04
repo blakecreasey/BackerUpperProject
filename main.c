@@ -367,14 +367,21 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
           if (count >= 2) {
             char* new_file_in_backup =
               calloc (sizeof (char), sizeof (char) * MAX);
+             char* old_file =
+              calloc (sizeof (char), sizeof (char) * MAX);
             strcat (new_file_in_backup, backup_folder_path);
             strcat (new_file_in_backup, "/");
             strcat (new_file_in_backup, dir->d_name);
-            
+            strcat (old_file, "../");
+            strcat (old_file, prev_backup_file);
+            strcat (old_file, "/");
+            strcat (old_file, dir->d_name);
+
+            printf ("%s\n", old_file);
             printf ("%s  ", dir->d_name);
             printf ("%s\n", backup_folder_path);
             
-            int success = symlink (dir->d_name, new_file_in_backup);
+            int success = symlink (old_file, new_file_in_backup);
             if (success == -1) {
               perror ("symlink");
               exit (EXIT_FAILURE);
