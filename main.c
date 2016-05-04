@@ -40,7 +40,7 @@ void queue_put(queue_t* queue, const char* filename, uint32_t mask);
 node_t* queue_take(queue_t* queue);
 
 char* create_backup_dir();
-void create_soft_links(char* backup_folder_path, char* prev_backup);
+void create_soft_links(char* backup_folder_path, char* prev_backup_file);
 void copy_files (int is_dir, char* source, char* destination);
 void handle_queue(char* backup_folder_path, queue_t* queue);
 
@@ -335,21 +335,20 @@ void back_up (queue_t* queue, char* watched) {
 }
 
 
-void create_soft_links(char* backup_folder_path, char* prev_backup) {
+void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
   //http://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory
   //-\in-a-c-program
   DIR           *d;
   struct dirent *dir;
   
-  char* prev_path = calloc (sizeof (char), sizeof (char) * MAX);
+  char* prev_dir_path = calloc (sizeof (char), sizeof (char) * MAX);
   
-  strcat (prev_path, BACKUP_DIR_PATH);
-  strcat (prev_path, "/");
-  strcat (prev_path, prev_backup);
-  strcat (prev_path, "/");
-  printf("%s\n", prev_path);
+  strcat (prev_dir_path, BACKUP_DIR_PATH);
+  strcat (prev_dir_path, "/");
+  strcat (prev_dir_path, prev_backup_file);
+  strcat (prev_dir_path, "/");
   
-  d = opendir(prev_path);
+  d = opendir(prev_dir_path);
   
   if (d == NULL) {
     printf ("NULL\n");
@@ -357,15 +356,35 @@ void create_soft_links(char* backup_folder_path, char* prev_backup) {
     exit (EXIT_FAILURE);
   }
   
+  //iterate through files in directory and make softlinks back to previous
+  //backup
+  
   if (d)
-  {
-    while ((dir = readdir(d)) != NULL)
     {
-      printf("%s\n", dir->d_name);
-    }
+      int count = 0; // used to avoid reading "." and ".." directories
+      while ((dir = readdir(d)) != NULL)
+        {
+          if (count >= 2) {
+            char* new_file_in_backup =
+              calloc (sizeof (char), sizeof (char) * MAX);
+            strcat (new_file_in_backup, backup_folder_path);
+            strcat (new_file_in_backup, "/");
+            strcat (new_file_in_backup, dir->d_name);
+            
+            printf ("%s  ", dir->d_name);
+            printf ("%s\n", backup_folder_path);
+            
+            int success = symlink (dir->d_name, new_file_in_backup);
+            if (success == -1) {
+              perror ("symlink");
+              exit (EXIT_FAILURE);
+            }
+          }
+          count++;
+        }
 
-    closedir(d);
-  }
+      closedir(d);
+    }
 }
 
 void handle_queue(char* backup_folder_path, queue_t* queue) {
