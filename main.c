@@ -1,43 +1,24 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/inotify.h>
-#include <unistd.h>
 #include <errno.h>
 #include <sys/time.h>
 #include <poll.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <dirent.h>
 #include <time.h>
 #include <string.h>
+#include "queue.h"
 
 //This path has to be set by user, depends of file system structure
 #define BACKUP_DIR_PATH "/home/fayjulia/Desktop/backups"
 #define MAX 100
 
-// Define a struct for queue nodes to track events
-typedef struct node {
-  uint32_t mask;
-  const char* filename;
-  struct node* next;
-} node_t;
-  
-typedef struct queue {
-  node_t* head;
-  node_t* tail;
-} queue_t;
-  
 
 // Function signatures
 static void handle_events (int fd, int *wd, int argc, char* argv[], queue_t*
                            queue); 
 void back_up (queue_t* queue, char* watched);
 int isDirectoryEmpty();
-
-queue_t* queue_create();
-void queue_put(queue_t* queue, const char* filename, uint32_t mask);
-node_t* queue_take(queue_t* queue);
 
 char* create_backup_dir();
 void create_soft_links(char* backup_folder_path, char* prev_backup_file);
@@ -504,55 +485,6 @@ int isDirectoryEmpty() {
     return 1;
   else
     return 0;
-}
-
-
-
-/* QUEUE FUNCTIONS */
-// Create a new empty queue
-queue_t* queue_create() {
-  queue_t* q = (queue_t*) malloc(sizeof(queue_t));
-  if(q == NULL)
-      perror("Malloc failed\n");
-  q->head = NULL;
-  q->tail = NULL;
-  return q;
-}
-
-
-
-// Put an element at the end of a queue
-void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
-  node_t* newNode = (node_t*) malloc(sizeof(node_t));
-  newNode->next = NULL;
-  newNode->filename = filename;
-  newNode->mask = mask;
-
-  //check if queue is empty
-  if(queue->head == NULL && queue->tail == NULL) {
-    queue->head = queue->tail = newNode;
-    return;
-  }  
-  queue->tail->next = newNode;
-  queue->tail = newNode;
-}
-
-
-
-// Take an element off the front of a queue
-node_t* queue_take(queue_t* queue) {
-  node_t* node = queue->head;
-  if (queue->head == NULL) {
-    return NULL;
-  }  
-  else if (queue->head == queue->tail) {
-    queue->head = queue->tail = NULL;
-    return node;
-  }
-  else {
-    queue->head = queue->head->next;
-    return node;
-  }
 }
 
 /*
