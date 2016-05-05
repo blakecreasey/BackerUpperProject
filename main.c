@@ -12,7 +12,7 @@
 #include <time.h>
 #include <string.h>
 
-
+//This path has to be set by user, depends of file system structure
 #define BACKUP_DIR_PATH "/home/fayjulia/Desktop/backups"
 #define MAX 100
 
@@ -47,24 +47,6 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched);
 // Main function
 // Basis taken from Linux man page for inotify
 int main(int argc, char* argv[]) {
-
-  /* // Get environment */
-  /* // http://stackoverflow.com/questions/3616595/why-mkdir-fails-to-work-with-tilde */
-  /* char path[MAX]; */
-  /* char *home = getenv ("HOME"); */
-  /* if (home != NULL) { */
-  /*   snprintf(path, sizeof(path), "%s/new_dir", home); */
-  /*   // now use path in mkdir */
-  /*   mkdir(path, 0700); */
-  /* } */
-
-  /* char* backup_path = (char*)malloc(sizeof(char) * 100); */
-  /* strcat(backup_path, home); */
-  /* strcat(backup_path, "/Desktop/backups"); */
-  /* printf("backup path: %s\n", backup_path); */
-
-
-
   //Initialize variables
   char buf;
   int fd, i, poll_num;
@@ -80,6 +62,9 @@ int main(int argc, char* argv[]) {
     printf("Usage: %s PATH [PATH ...]\n", argv[0]);
     exit(EXIT_FAILURE);
   }
+  
+  //if dir does not already exist it will be created
+  mkdir (BACKUP_DIR_PATH, 0777);
 
   printf("Press ENTER key to terminate.\n");
 
@@ -159,7 +144,6 @@ int main(int argc, char* argv[]) {
   printf("Do you want to backup?, 0 no, 1 yes\n");
   scanf("%d", &back_up_notice);
   if (back_up_notice == 1) {
-    //printf("argv[1] = %s\n", argv[1]);
     back_up(queue, argv[1]); //
   }
   printf("Listening for events stopped.\n");
@@ -215,36 +199,29 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
       /* Print event type */
       if (event->mask & IN_DELETE) {
         queue_put (queue, event->name, IN_DELETE);
+        //printf ("%d\n", queue->head);
         printf("IN_DELETE: ");
       }
       if (event->mask & IN_CREATE) {
         queue_put (queue, event->name, IN_CREATE);
+        //printf ("%d\n", queue->head);
         printf("IN_CREATE: ");
       }
-      /* if (event->mask & IN_DELETE_SELF) */
-      /*   printf("IN_DELETE_SELF: "); */
-      /* if (event->mask & IN_MOVE_SELF) */
-      /*   printf("IN_MOVE_SELF: "); */
       if (event->mask & IN_MOVED_FROM) {
         queue_put (queue, event->name, IN_DELETE);
+        //printf ("%d\n", queue->head);
         printf("IN_MOVED_FROM: ");
       }
       if (event->mask & IN_MOVED_TO) {
         queue_put (queue, event->name, IN_CREATE);
+        //printf ("%d\n", queue->head);
         printf("IN_MOVED_TO: ");
       }
       if (event->mask & IN_MODIFY) {
         queue_put (queue, event->name, IN_MODIFY);
+        //printf ("%d\n", queue->head);
         printf("IN_MODIFY: ");
       }
-      /* if (event->mask & IN_OPEN) */
-      /*   printf("IN_OPEN: "); */
-      /* if (event->mask & IN_CLOSE_WRITE) */
-      /*   printf("IN_CLOSE_WRITE: "); */
-      /* if (event->mask & IN_CLOSE_NOWRITE) */
-      /*   printf("IN_CLOSE_NOWRITE: "); */
-
-      //printf ("%d/n", (queue_take(queue))->mask);
 
       /* Print the name of the watched directory */
       for (i = 1; i < argc; ++i) {
@@ -306,8 +283,6 @@ void back_up (queue_t* queue, char* watched) {
     
     strcpy (strtok (prev_backup, "\n"), prev_backup);
     
-    //printf("prev_backup = %s\n", prev_backup);
-    /* close */
     pclose(fp);
   }
   
@@ -351,7 +326,6 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
   d = opendir(prev_dir_path);
   
   if (d == NULL) {
-    //printf ("NULL\n");
     perror ("opendir");
     exit (EXIT_FAILURE);
   }
@@ -390,32 +364,56 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
     }
 }
 
+// To check if file exists from http://stackoverflow.com/questions/230062/whats-the-best-way-to-check-if-a-file-exists-in-c-cross-platform
 void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
   // Dequeue events until the queue is empty
+  int counter = 0;
   while (queue != NULL) {
+    counter++;
+    printf ("counter %d\n", counter);
+    /* printf ("%s\n", queue->head->filename); */
+    /* printf ("mask1 %d\n", queue->head->mask); */
+    /* printf ("%s\n", queue->head->next->filename); */
+    /* printf ("mask2 %d\n", queue->head->next->mask); */
+    /* printf ("%d\n", queue->head); */
     node_t* event = queue_take(queue);
+    /* printf ("2%s\n", queue->head->filename); */
 
     if (event == NULL)
       return;
-    // If create event, copy the file from the source to the new backup dir
-    if (event->mask & IN_CREATE) {
-      char* copy_file_path = calloc(sizeof(char), sizeof(char) * MAX);
-      printf ("in handle queue %s\n", event->filename);
-      strcat (copy_file_path, watched);
-      strcat (copy_file_path, "/");
-      strcat (copy_file_path, event->filename);
-
-      copy_files (0, copy_file_path, backup_folder_path);
-      //handle the event that the file to copy been deleted. 
-    }
-    // If delete event, remove the softlink from the folder 
-    if (event->mask & IN_DELETE) {
         
-    }
-    // If modify event
-    // Copy over file IF the file does exist as a soft link
-    if (event->mask & IN_MODIFY) {
-    
+    char* copy_file_path = calloc(sizeof(char), sizeof(char) * MAX);
+    strcat (copy_file_path, watched);
+    strcat (copy_file_path, "/");
+    strcat (copy_file_path, event->filename);
+
+    //if the file that will be copied, modified or deleted still exists
+    if (access( copy_file_path, F_OK )!=-1) {
+      // If create event, copy the file from the source to the new backup dir
+      if (event->mask & IN_CREATE) {
+        printf ("in create\n");
+        copy_files (0, copy_file_path, backup_folder_path); 
+      }
+      // If delete event, remove the softlink from the folder 
+      else if (event->mask & IN_DELETE) {
+        printf ("in delete\n");
+        int status = unlink (copy_file_path);
+        if (status == -1) {
+          perror ("unlink");
+          exit (EXIT_FAILURE);
+        }
+      }
+      // If modify event
+      // Copy over file IF the file does exist as a soft link
+      else if (event->mask & IN_MODIFY) {
+        printf ("in modify\n");
+        int status = unlink (copy_file_path);
+        if (status == -1) {
+          perror ("unlink");
+          exit (EXIT_FAILURE);
+        }
+        copy_files (0, copy_file_path, backup_folder_path);
+      }
     }
   }
 }
@@ -517,7 +515,6 @@ queue_t* queue_create() {
   if(q == NULL)
       perror("Malloc failed\n");
   q->head = NULL;
-  //q->head->next = NULL;
   q->tail = NULL;
   return q;
 }
