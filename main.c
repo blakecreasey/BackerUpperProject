@@ -1,16 +1,10 @@
 #include <sys/inotify.h>
-#include <errno.h>
-#include <sys/time.h>
 #include <poll.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <time.h>
-#include <string.h>
 #include "queue.h"
+#include "backup_helpers.h"
 
 //This path has to be set by user, depends of file system structure
-#define BACKUP_DIR_PATH "/home/fayjulia/Desktop/backups"
+#define BACKUP_DIR_PATH "/home/hardtmad/Desktop/backups"
 #define MAX 100
 
 
@@ -18,11 +12,6 @@
 static void handle_events (int fd, int *wd, int argc, char* argv[], queue_t*
                            queue); 
 void back_up (queue_t* queue, char* watched);
-int isDirectoryEmpty();
-
-char* create_backup_dir();
-void create_soft_links(char* backup_folder_path, char* prev_backup_file);
-void copy_files (int is_dir, char* source, char* destination);
 void handle_queue(char* backup_folder_path, queue_t* queue, char* watched);
 
 // Main function
@@ -291,107 +280,64 @@ void back_up (queue_t* queue, char* watched) {
 }
 
 
-void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
-  //http://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory
-  //-\in-a-c-program
-  DIR           *d;
-  struct dirent *dir;
-  
-  char* prev_dir_path = calloc (sizeof (char), sizeof (char) * MAX);
-  
-  strcat (prev_dir_path, BACKUP_DIR_PATH);
-  strcat (prev_dir_path, "/");
-  strcat (prev_dir_path, prev_backup_file);
-  strcat (prev_dir_path, "/");
-  
-  d = opendir(prev_dir_path);
-  
-  if (d == NULL) {
-    perror ("opendir");
-    exit (EXIT_FAILURE);
-  }
-  
-  //iterate through files in directory and make softlinks back to previous
-  //backup
-  
-  if (d)
-    {
-      int count = 0; // used to avoid reading "." and ".." directories
-      while ((dir = readdir(d)) != NULL)
-        {
-          if (count >= 2) {
-            char* new_file_in_backup =
-              calloc (sizeof (char), sizeof (char) * MAX);
-             char* old_file =
-              calloc (sizeof (char), sizeof (char) * MAX);
-            strcat (new_file_in_backup, backup_folder_path);
-            strcat (new_file_in_backup, "/");
-            strcat (new_file_in_backup, dir->d_name);
-            strcat (old_file, "../");
-            strcat (old_file, prev_backup_file);
-            strcat (old_file, "/");
-            strcat (old_file, dir->d_name);
-             
-            int success = symlink (old_file, new_file_in_backup);
-            if (success == -1) {
-              perror ("symlink");
-              exit (EXIT_FAILURE);
-            }
-          }
-          count++;
-        }
 
-      closedir(d);
-    }
-}
-
-// To check if file exists from http://stackoverflow.com/questions/230062/whats-the-best-way-to-check-if-a-file-exists-in-c-cross-platform
+// Function to iterate though queue of events received and call appropriate
+// functions
+// Citation: checking if file exists taken from http://stackoverflow.com/questions/230062/whats-the-best-way-to-check-if-a-file-exists-in-c-cross-platform
 void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
   // Dequeue events until the queue is empty
-  int counter = 0;
+  //int counter = 0;
+  node_t* event = (node_t*)malloc(sizeof(node_t));
   while (queue != NULL) {
-    counter++;
-    printf ("counter %d\n", counter);
+    //counter++;
+    //printf ("counter %d\n", counter);
     /* printf ("%s\n", queue->head->filename); */
     /* printf ("mask1 %d\n", queue->head->mask); */
     /* printf ("%s\n", queue->head->next->filename); */
     /* printf ("mask2 %d\n", queue->head->next->mask); */
     /* printf ("%d\n", queue->head); */
-    node_t* event = queue_take(queue);
+    
+    // Get the next event 
+    event = queue_take(queue);
     /* printf ("2%s\n", queue->head->filename); */
 
+    // Base case: queue is empty
     if (event == NULL)
       return;
-        
+
+    // Recursive case
+    // Save absolute path of current file (referenced by current event)
     char* copy_file_path = calloc(sizeof(char), sizeof(char) * MAX);
     strcat (copy_file_path, watched);
     strcat (copy_file_path, "/");
     strcat (copy_file_path, event->filename);
 
-    //if the file that will be copied, modified or deleted still exists
+    //If current file still exists
     if (access( copy_file_path, F_OK )!=-1) {
       // If create event, copy the file from the source to the new backup dir
       if (event->mask & IN_CREATE) {
-        printf ("in create\n");
+        //printf ("in create\n");
         copy_files (0, copy_file_path, backup_folder_path); 
       }
-      // If delete event, remove the softlink from the folder 
+      // If delete event, remove the softlink from the backup dir
       else if (event->mask & IN_DELETE) {
-        printf ("in delete\n");
+        //printf ("in delete\n");
         int status = unlink (copy_file_path);
         if (status == -1) {
-          perror ("unlink");
-          exit (EXIT_FAILURE);
+          perror ("Unlink failed");
+          //exit (EXIT_FAILURE);
         }
       }
       // If modify event
-      // Copy over file IF the file does exist as a soft link
+      // Copy over file IF the file does exist as a soft link, indiciating the
+      // modified version has not already been copied
       else if (event->mask & IN_MODIFY) {
-        printf ("in modify\n");
+        //printf ("in modify\n");
+        /* ~~~~~ NEED TO CHECK WHETHER FILE IS A SOFT LINK HERE ~~~~~~~ */
         int status = unlink (copy_file_path);
         if (status == -1) {
-          perror ("unlink");
-          exit (EXIT_FAILURE);
+          perror ("Unlink failed");
+          //exit (EXIT_FAILURE);
         }
         copy_files (0, copy_file_path, backup_folder_path);
       }
@@ -400,96 +346,9 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
 }
 
 
-// Function to generate new directory with new name 
 
-char* create_backup_dir(){
-  // Malloc space for directory name of current backup date and time
-  char* date_time_string = calloc (sizeof(char), sizeof (char) * 25 +
-                                   sizeof (BACKUP_DIR_PATH));
-  
-  // Get time and local time
-  time_t rawtime;   
-  time ( &rawtime );
-  struct tm* tm = localtime ( &rawtime );
-
-  // Malloc space for string version of year, month, etc.
-  char* intstr = malloc (sizeof (char) * 5);
-
-  // Convert int fields of local time (year, month, etc.) to strings
-  // Add string representations of date and time to new backup dir name
-  strcat (date_time_string, BACKUP_DIR_PATH);
-  strcat (date_time_string, "/");
-  sprintf (intstr, "%04d", tm->tm_year + 1900);
-  strcat (date_time_string, intstr);
-  strcat (date_time_string, "-");
-  sprintf (intstr, "%02d", tm->tm_mon+1);
-  strcat (date_time_string, intstr);
-  strcat (date_time_string, "-");
-  sprintf (intstr, "%02d", tm->tm_mday);
-  strcat (date_time_string, intstr);
-  strcat (date_time_string, "--");
-  sprintf (intstr, "%02d", tm->tm_hour);
-  strcat (date_time_string, intstr);
-  strcat (date_time_string, ":");
-  sprintf (intstr, "%02d", tm->tm_min);
-  strcat (date_time_string, intstr);
-  strcat (date_time_string, ":");
-  sprintf (intstr, "%02d", tm->tm_sec);
-  strcat (date_time_string, intstr);
-
-  int status = mkdir(date_time_string, 0700);
-  if(status == -1) {
-    perror("Failed to make a new backup directory");
-    exit(EXIT_FAILURE);
-  }
-  return date_time_string;
-}
-
-
-void copy_files (int is_dir, char* source, char* destination) {
-  
-  char* command = calloc (sizeof (char), sizeof (char) * MAX);
-  if (is_dir) {
-    strcat (command, "cp -a ");
-  }
-  else {
-    strcat (command, "cp ");
-  }
-
-  strcat (command, source);
-  strcat (command, " ");
-  strcat (command, destination);
-  
-  int success = system (command);
-  if (success == -1) {
-    perror ("system");
-    exit (EXIT_FAILURE);
-  }
-  
-}
-
-
-//taken from http://stackoverflow.com/questions/6383584/check-if-a-directory-is-empty-using-c-on-linux
-int isDirectoryEmpty() {
-  int n = 0;
-  struct dirent *d;
-  DIR *dir = opendir(BACKUP_DIR_PATH);
-  if (dir == NULL) //Not a directory or doesn't exist
-    return 1;
-  while ((d = readdir(dir)) != NULL) {
-    if(++n > 2)
-      break;
-  }
-  closedir(dir);
-  if (n <= 2) //Directory Empty
-    return 1;
-  else
-    return 0;
-}
 
 /*
 Works Cited: 
 http://man7.org/linux/man-pages/man7/inotify.7.html
-queue structs and functions taken from CSC-213 data structures lab also 
- by Zoe Wolter
  */

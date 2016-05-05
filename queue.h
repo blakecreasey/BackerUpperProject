@@ -4,16 +4,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <unistd.h>
+#include <unistd.h> 
 
 
 
 // Define a struct for queue nodes to track events
-typedef struct node {
+typedef struct node { 
   uint32_t mask;
   const char* filename;
   struct node* next;
-} node_t;
+} node_t;   
   
 typedef struct queue {
   node_t* head;

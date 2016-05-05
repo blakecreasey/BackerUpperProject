@@ -45,3 +45,6 @@ node_t* queue_take(queue_t* queue) {
     return node;
   }
 }
+
+/* queue structs and functions taken from CSC-213 data structures lab also  */
+/*  by Zoe Wolter */
