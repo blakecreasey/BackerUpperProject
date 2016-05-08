@@ -4,7 +4,7 @@
 #include "backup_helpers.h"
 
 //This path has to be set by user, depends of file system structure
-#define BACKUP_DIR_PATH "/home/hardtmad/Desktop/backups"
+#define BACKUP_DIR_PATH "/home/fayjulia/Desktop/backups"
 #define MAX 100
 
 
@@ -230,6 +230,10 @@ void back_up (queue_t* queue, char* watched) {
      // The most recent backup folder created
     FILE *fp;
     char* command = calloc (sizeof (char), sizeof (char) * MAX);
+    if (command == NULL) {
+      perror("Calloc");
+      exit(EXIT_FAILURE);
+    }
 
     // Command for find last backup directory
     strcat(command, "cd ");
@@ -287,7 +291,11 @@ void back_up (queue_t* queue, char* watched) {
 void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
   // Dequeue events until the queue is empty
   //int counter = 0;
-  node_t* event = (node_t*)malloc(sizeof(node_t));
+  node_t* event =  (node_t*)malloc(sizeof(node_t));
+  if(event == NULL) {
+    perror("Malloc");
+    exit(EXIT_FAILURE);
+  }
   while (queue != NULL) {
     //counter++;
     //printf ("counter %d\n", counter);
@@ -308,6 +316,10 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
     // Recursive case
     // Save absolute path of current file (referenced by current event)
     char* copy_file_path = calloc(sizeof(char), sizeof(char) * MAX);
+    if (copy_file_path == NULL) {
+      perror("Calloc");
+      exit(EXIT_FAILURE);
+    }
     strcat (copy_file_path, watched);
     strcat (copy_file_path, "/");
     strcat (copy_file_path, event->filename);
@@ -332,17 +344,22 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
       // Copy over file IF the file does exist as a soft link, indiciating the
       // modified version has not already been copied
       else if (event->mask & IN_MODIFY) {
-        //printf ("in modify\n");
-        /* ~~~~~ NEED TO CHECK WHETHER FILE IS A SOFT LINK HERE ~~~~~~~ */
-        int status = unlink (copy_file_path);
-        if (status == -1) {
-          perror ("Unlink failed");
-          //exit (EXIT_FAILURE);
+        //if something is a softlink, then copy over file, else do nothing
+        struct stat buf;
+        lstat (copy_file_path, &buf);
+        if (S_ISLNK(buf.st_mode)) {
+          int status = unlink (copy_file_path);
+          //printf("2tried to delete: %s\n", copy_file_path);
+          if (status == -1) {
+            perror ("Unlink failed");
+            exit (EXIT_FAILURE);
+          }
+          copy_files (0, copy_file_path, backup_folder_path);
         }
-        copy_files (0, copy_file_path, backup_folder_path);
       }
     }
   }
+  free(event);
 }
 
 

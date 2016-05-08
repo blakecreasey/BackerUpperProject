@@ -5,8 +5,10 @@
 // Create a new empty queue
 queue_t* queue_create() {
   queue_t* q = (queue_t*) malloc(sizeof(queue_t));
-  if(q == NULL)
-      perror("Malloc failed\n");
+  if(q == NULL) {
+    perror("Malloc");
+    exit(EXIT_FAILURE);
+  }
   q->head = NULL;
   q->tail = NULL;
   return q;
@@ -16,8 +18,13 @@ queue_t* queue_create() {
 // Put an element at the end of a queue
 void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
   node_t* newNode = (node_t*) malloc(sizeof(node_t));
+  if(newNode == NULL) {
+    perror("Malloc");
+    exit(EXIT_FAILURE);
+  }
   newNode->next = NULL;
   newNode->filename = filename;
+  //printf ("queue put %s\n", newNode->filename);
   newNode->mask = mask;
 
   //check if queue is empty
@@ -27,12 +34,15 @@ void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
   }  
   queue->tail->next = newNode;
   queue->tail = newNode;
+  //printf ("end queue put %s\n", queue->tail->filename);
 }
 
 
 // Take an element off the front of a queue
 node_t* queue_take(queue_t* queue) {
   node_t* node = queue->head;
+  //printf ("queue take %s\n", node->filename);
+  //printf ("queue take middle %s\n", queue->head->next->filename);
   if (queue->head == NULL) {
     return NULL;
   }  

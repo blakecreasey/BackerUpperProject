@@ -1,7 +1,6 @@
 #include "backup_helpers.h"
 
-
-#define BACKUP_DIR_PATH "/home/hardtmad/Desktop/backups"
+#define BACKUP_DIR_PATH "/home/fayjulia/Desktop/backups"
 #define MAX 100
 
 // Function to check if the backup directory is empty
@@ -36,6 +35,10 @@ char* create_backup_dir(){
   // Malloc space for directory name of current backup date and time
   char* date_time_string = calloc (sizeof(char), sizeof (char) * MAX +
                                    sizeof (BACKUP_DIR_PATH));
+  if(date_time_string == NULL) {
+    perror("Calloc");
+    exit(EXIT_FAILURE);
+  }
   
   // Get time and local time
   time_t rawtime;   
@@ -44,6 +47,11 @@ char* create_backup_dir(){
 
   // Malloc space for string version of year, month, etc.
   char* intstr = malloc (sizeof (char) * 5);
+  if(intstr == NULL) {
+    perror("Malloc");
+    exit(EXIT_FAILURE);
+  }
+ 
 
   // Convert int fields of local time (year, month, etc.) to strings
   // Add string representations of date and time to new backup dir name
@@ -82,6 +90,10 @@ char* create_backup_dir(){
 void copy_files (int is_dir, char* source, char* destination) {
   // Use strcat to create  a string with the copy command we want call
   char* command = calloc (sizeof (char), sizeof (char) * MAX);
+  if(command == NULL) {
+    perror("Calloc");
+    exit(EXIT_FAILURE);
+  }
   if (is_dir) {
     strcat (command, "cp -a ");
   }
@@ -109,6 +121,10 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
   struct dirent *dir;
   
   char* prev_dir_path = calloc (sizeof (char), sizeof (char) * MAX);
+  if(prev_dir_path == NULL) {
+    perror("Calloc");
+    exit(EXIT_FAILURE);
+  }
   
   strcat (prev_dir_path, BACKUP_DIR_PATH);
   strcat (prev_dir_path, "/");
@@ -133,8 +149,16 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
           if (count >= 2) {
             char* new_file_in_backup =
               calloc (sizeof (char), sizeof (char) * MAX);
+            if(new_file_in_backup == NULL) {
+              perror("Calloc");
+              exit(EXIT_FAILURE);
+            }
             char* old_file =
               calloc (sizeof (char), sizeof (char) * MAX);
+            if(old_file == NULL) {
+              perror("Calloc");
+              exit(EXIT_FAILURE);
+            }
             strcat (new_file_in_backup, backup_folder_path);
             strcat (new_file_in_backup, "/");
             strcat (new_file_in_backup, dir->d_name);
