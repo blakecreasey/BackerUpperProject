@@ -5,7 +5,6 @@
 
 // Function to check if the backup directory is empty
 // (aside from standard . and ..)
-// Citation: function taken from http://stackoverflow.com/questions/6383584/check-if-a-directory-is-empty-using-c-on-linux
 // Returns 1 if empty indicating that we have not yet made any backups
 int isDirectoryEmpty() {
   int n = 0;
@@ -52,7 +51,6 @@ char* create_backup_dir(){
     exit(EXIT_FAILURE);
   }
  
-
   // Convert int fields of local time (year, month, etc.) to strings
   // Add string representations of date and time to new backup dir name
   strcat (date_time_string, BACKUP_DIR_PATH);
@@ -105,8 +103,6 @@ void copy_files (int is_dir, char* source, char* destination) {
   strcat (command, " ");
   strcat (command, destination);
 
-  printf ("%s command\n", command);
-
   // Call command using system function which executes a shell command
   int success = system (command);
   if (success == -1) {
@@ -117,8 +113,6 @@ void copy_files (int is_dir, char* source, char* destination) {
 
 
 void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
-  //http://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory
-  //-\in-a-c-program
   DIR           *d;
   struct dirent *dir;
   
@@ -145,7 +139,7 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
   
   if (d)
     {
-      int count = 0; // used to avoid reading "." and ".." directories
+      int count = 0; // used to avoid reading "." and ".." from dir
       while ((dir = readdir(d)) != NULL)
         {
           if (count >= 2) {
@@ -181,3 +175,11 @@ void create_soft_links(char* backup_folder_path, char* prev_backup_file) {
       closedir(d);
     }
 }
+
+
+/*
+Works Cited:
+function taken from http://stackoverflow.com/questions/6383584/check-if-a-directory-is-empty-using-c-on-linux
+http://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory
+-\in-a-c-program
+*/

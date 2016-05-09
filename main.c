@@ -7,7 +7,6 @@
 #define BACKUP_DIR_PATH "/home/fayjulia/Desktop/backups"
 #define MAX 100
 
-
 // Function signatures
 static void handle_events (int fd, int *wd, int argc, char* argv[], queue_t*
                            queue); 
@@ -82,6 +81,7 @@ int main(int argc, char* argv[]) {
   fds[1].fd = fd;
   fds[1].events = POLLIN;
 
+  //initialize event queue
   queue_t* queue = queue_create();
 
   /* Wait for events and/or terminal input */
@@ -113,22 +113,24 @@ int main(int argc, char* argv[]) {
   int back_up_notice = 0;
   printf("Do you want to backup?, 0 no, 1 yes\n");
   scanf("%d", &back_up_notice);
+
+  //back up dir if directed by user
   if (back_up_notice == 1) {
-    back_up(queue, argv[1]); //
+    back_up(queue, argv[1]);
   }
   printf("Listening for events stopped.\n");
 
   /* Close inotify file descriptor */
 
   close(fd);
-
-  free(wd);
+  free(wd); 
   exit(EXIT_SUCCESS);
-}
+} 
 
 
 
 // Method taken from Linux man page
+// handles changes to watched directory by type
 static void handle_events (int fd, int *wd, int argc, char* argv[],
                            queue_t* queue) {
   /* Some systems cannot read integer variables if they are not
@@ -152,7 +154,6 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
     if (len == -1 && errno != EAGAIN) {
       perror("read");
       exit(EXIT_FAILURE);
-
    }
 
     /* If the nonblocking read() found no events to read, then
@@ -167,51 +168,29 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
 
       event = (struct inotify_event *) ptr;
       char* name = malloc (sizeof (char) * MAX);
-      //printf("%s event->name \n", event->name);
-      strncpy (name, event->name, MAX); 
+      strncpy (name, event->name, MAX);  
 
-      //event = (const struct inotify_event *) malloc
-      //(sizeof (struct inotify_event));
-        //memcpy (ptr, event, sizeof (struct inotify_event));
-      //printf ("%s\n", event->name);
-      //printf ("name: %s\n", name); 
-
-      /* Print event type */
+      /* Print event type and put it on queue*/
       if (event->mask & IN_DELETE) {
         queue_put (queue, name, IN_DELETE);
-        //printf ("%d\n", queue->head);
         printf("IN_DELETE: ");
       }
       if (event->mask & IN_CREATE) {
         queue_put (queue, name, IN_CREATE);
-        //printf ("%d\n", queue->head);
         printf("IN_CREATE: ");
       }
       if (event->mask & IN_MOVED_FROM) {
         queue_put (queue, name, IN_DELETE);
-        //printf ("%d\n", queue->head);
         printf("IN_MOVED_FROM: ");
       }
       if (event->mask & IN_MOVED_TO) {
         queue_put (queue, name, IN_CREATE);
-        //printf ("%d\n", queue->head);
         printf("IN_MOVED_TO: ");
       }
       if (event->mask & IN_MODIFY) {
         queue_put (queue, name, IN_MODIFY);
-        //printf ("%d\n", queue->head);
         printf("IN_MODIFY: ");
       }
- 
-       /* //check queue */
-      /* node_t* temp = (node_t*)malloc(sizeof(node_t)); */
-      /* temp = queue->head; */
-      /* printf("check queue:\n"); */
-      /* printf ("queue: file %s, mask %u\n", temp->filename, temp->mask); */
-      /* while(temp = temp->next) */
-      /*   { */
-      /*   printf ("queue: file %s, mask %u\n", temp->filename,temp->mask); */
-      /*   } */
 
       /* Print the name of the watched directory */
       for (i = 1; i < argc; ++i) {
@@ -234,13 +213,9 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
   }
 } 
 
+// creates a backup, back up dir is empty copies all files to a new dir, if not
+// creates softlinks to most recent back up
 void back_up (queue_t* queue, char* watched) {
-
-  /* first back up? create backup folder and folder for first back up */
-  /* then copy over */
-  /* create_new_dir if is not first back up */
-  /* write soft links */
-  /* then deal with queue, with different functions for different masks */
   
   int directory_status = isDirectoryEmpty();
 
@@ -261,8 +236,6 @@ void back_up (queue_t* queue, char* watched) {
     strcat(command, BACKUP_DIR_PATH);
     strcat(command, "; ls | tail -1"); // Create ls command
 
-    //printf("command = %s\n", command);
-
     // Call the ls command and read it from output.
    
     fp = popen(command, "r");
@@ -281,61 +254,45 @@ void back_up (queue_t* queue, char* watched) {
     pclose(fp);
   }
   
-  // Check if backup directory is empty.
-  // If yes, then create_backup_dir and make a total copy of the folder
-  // If not, then make soft links backwards to last backup folder with
-  // each file represented
   char * backup_folder_path = create_backup_dir();
 
-  // Thus directory has 1 element (was empty before we created another folder)
-  // Copy all elements from the watched directory to the destination
-  // (the backup folder) 
-  if (directory_status == 1) {
+  // Copy all elements from the watched directory to the destination if dir is
+  // empty  
+  if (directory_status == 1) { 
     copy_files(1, watched, backup_folder_path);
     return;
   }
-  
-  // Otherwise, there is more than 1 backup folder
-
-   /* If new file name is found in the old backup, make softlink between the 2 */
+  //If new file name is found in the old backup, make softlink between the two
   create_soft_links(backup_folder_path, prev_backup);
-   /* Handle all events that happened: modify, new, delete, rename   */
+   /* Handle all events that happened: modify, new, delete, rename*/
   handle_queue(backup_folder_path, queue, watched);
-  
 }
 
 
 
 // Function to iterate though queue of events received and call appropriate
 // functions
-// Citation: checking if file exists taken from http://stackoverflow.com/questions/230062/whats-the-best-way-to-check-if-a-file-exists-in-c-cross-platform
 void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
-  // Dequeue events until the queue is empty
-  //int counter = 0;
+
+  // make space for an event from the queue
   node_t* event =  (node_t*)malloc(sizeof(node_t));
   if(event == NULL) {
     perror("Malloc");
     exit(EXIT_FAILURE);
   }
+
+  // Dequeue events until the queue is empty
   while (queue != NULL) {
-    //counter++;
-    //printf ("counter %d\n", counter);
-    /* printf ("%s\n", queue->head->filename); */
-    /* printf ("mask1 %d\n", queue->head->mask); */
-    /* printf ("%s\n", queue->head->next->filename); */
-    /* printf ("mask2 %d\n", queue->head->next->mask); */
-    /* printf ("%d\n", queue->head); */
     
     // Get the next event 
     event = queue_take(queue);
-    /* printf ("2%s\n", queue->head->filename); */
 
     // Base case: queue is empty
     if (event == NULL)
       return;
 
     // Recursive case
-    // Save absolute path of current file (referenced by current event)
+    // Save path of current file (referenced by current event)
     char* copy_file_path = calloc(sizeof(char), sizeof(char) * MAX);
     if (copy_file_path == NULL) {
       perror("Calloc");
@@ -344,22 +301,19 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
     strcat (copy_file_path, watched);
     strcat (copy_file_path, "/");
     strcat (copy_file_path, event->filename);
-    printf ("copyfp %s\n", copy_file_path); 
 
     //If current file still exists
     if (access( copy_file_path, F_OK )!=-1) {
       // If create event, copy the file from the source to the new backup dir
       if (event->mask & IN_CREATE) {
-        //printf ("in create\n");
         copy_files (0, copy_file_path, backup_folder_path); 
       }
       // If delete event, remove the softlink from the backup dir
       else if (event->mask & IN_DELETE) { 
-        //printf ("in delete\n");
         int status = unlink (copy_file_path);
         if (status == -1) {
           perror ("Unlink failed");
-          //exit (EXIT_FAILURE);
+          exit (EXIT_FAILURE); 
         }
       } 
       // If modify event
@@ -377,21 +331,21 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
         strcat(backup_file_path, "/");
         strcat(backup_file_path, event->filename);
 
+        // check if softlink
+        // if softlink remove link and copy file over
         struct stat buf;
         int x;
         x = lstat (backup_file_path, &buf);
         if (S_ISLNK(buf.st_mode)) {
-          
+
+          // unlink softlink
         int status = unlink (backup_file_path);
           
         if (status == -1) { 
           perror ("Unlink failed");
           exit (EXIT_FAILURE);
-        } 
-        
-        /* char* mod_filename = (char*)malloc(sizeof(char)*MAX); */
-        /* printf("event->filename:%s\n", event->filename); */
-        //strcat (backup_file_path, 
+        }
+        // copy one file
         copy_files (0, copy_file_path, backup_file_path);
         }
       }
@@ -400,11 +354,9 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
   free(event);  
 }
 
- 
-
-
 /*
 Works Cited: 
 http://man7.org/linux/man-pages/man7/inotify.7.html
 stackoverflow.com/questions/3984948/man-2-stat-how-2-figure-out-if-a-file-is-a-link
+checking if file exists taken from http://stackoverflow.com/questions/230062/whats-the-best-way-to-check-if-a-file-exists-in-c-cross-platform
  */

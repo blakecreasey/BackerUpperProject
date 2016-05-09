@@ -8,6 +8,7 @@ directory. Any file which the user wishes to backup must be directly in the
 watched directory.
 Don't end the path for the watched directory with a slash, for example,
 write '.' for current directory not './'
+The watched directory must be either . or .. (implementation challenge)
 
 To use our system the user has to specify where they want their backup
 directory in the main file and backup helper file.The user then must run

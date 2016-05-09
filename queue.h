@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include <unistd.h> 
 
-
-
 // Define a struct for queue nodes to track events
 typedef struct node { 
   uint32_t mask;
