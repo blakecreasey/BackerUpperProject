@@ -139,7 +139,7 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
 
   char buf[4096]
     __attribute__ ((aligned(__alignof__(struct inotify_event))));
-  const struct inotify_event *event;
+  struct inotify_event *event;
   int i;
   ssize_t len;
   char *ptr;
@@ -152,7 +152,8 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
     if (len == -1 && errno != EAGAIN) {
       perror("read");
       exit(EXIT_FAILURE);
-    }
+
+   }
 
     /* If the nonblocking read() found no events to read, then
        it returns -1 with errno set to EAGAIN. In that case,
@@ -164,41 +165,60 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
     for (ptr = buf; ptr < buf + len;
          ptr += sizeof(struct inotify_event) + event->len) {
 
-      event = (const struct inotify_event *) ptr;
+      event = (struct inotify_event *) ptr;
+      char* name = malloc (sizeof (char) * MAX);
+      //printf("%s event->name \n", event->name);
+      strncpy (name, event->name, MAX); 
+
+      //event = (const struct inotify_event *) malloc
+      //(sizeof (struct inotify_event));
+        //memcpy (ptr, event, sizeof (struct inotify_event));
+      //printf ("%s\n", event->name);
+      //printf ("name: %s\n", name); 
 
       /* Print event type */
       if (event->mask & IN_DELETE) {
-        queue_put (queue, event->name, IN_DELETE);
+        queue_put (queue, name, IN_DELETE);
         //printf ("%d\n", queue->head);
         printf("IN_DELETE: ");
       }
       if (event->mask & IN_CREATE) {
-        queue_put (queue, event->name, IN_CREATE);
+        queue_put (queue, name, IN_CREATE);
         //printf ("%d\n", queue->head);
         printf("IN_CREATE: ");
       }
       if (event->mask & IN_MOVED_FROM) {
-        queue_put (queue, event->name, IN_DELETE);
+        queue_put (queue, name, IN_DELETE);
         //printf ("%d\n", queue->head);
         printf("IN_MOVED_FROM: ");
       }
       if (event->mask & IN_MOVED_TO) {
-        queue_put (queue, event->name, IN_CREATE);
+        queue_put (queue, name, IN_CREATE);
         //printf ("%d\n", queue->head);
         printf("IN_MOVED_TO: ");
       }
       if (event->mask & IN_MODIFY) {
-        queue_put (queue, event->name, IN_MODIFY);
+        queue_put (queue, name, IN_MODIFY);
         //printf ("%d\n", queue->head);
         printf("IN_MODIFY: ");
       }
+ 
+       /* //check queue */
+      /* node_t* temp = (node_t*)malloc(sizeof(node_t)); */
+      /* temp = queue->head; */
+      /* printf("check queue:\n"); */
+      /* printf ("queue: file %s, mask %u\n", temp->filename, temp->mask); */
+      /* while(temp = temp->next) */
+      /*   { */
+      /*   printf ("queue: file %s, mask %u\n", temp->filename,temp->mask); */
+      /*   } */
 
       /* Print the name of the watched directory */
       for (i = 1; i < argc; ++i) {
         if (wd[i] == event->wd) {
           printf("%s/", argv[i]);
           break;
-        }
+        } 
       }
 
       /* Print the name of the file */
@@ -212,9 +232,10 @@ static void handle_events (int fd, int *wd, int argc, char* argv[],
         printf(" [file]\n");
     }
   }
-}
+} 
 
 void back_up (queue_t* queue, char* watched) {
+
   /* first back up? create backup folder and folder for first back up */
   /* then copy over */
   /* create_new_dir if is not first back up */
@@ -247,7 +268,7 @@ void back_up (queue_t* queue, char* watched) {
     fp = popen(command, "r");
     if (fp == NULL) {
       printf("Failed to run command\n" );
-      exit(1);
+      exit(1); 
     }
 
     // Read the output of our ls command,
@@ -323,6 +344,7 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
     strcat (copy_file_path, watched);
     strcat (copy_file_path, "/");
     strcat (copy_file_path, event->filename);
+    printf ("copyfp %s\n", copy_file_path); 
 
     //If current file still exists
     if (access( copy_file_path, F_OK )!=-1) {
@@ -332,40 +354,60 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
         copy_files (0, copy_file_path, backup_folder_path); 
       }
       // If delete event, remove the softlink from the backup dir
-      else if (event->mask & IN_DELETE) {
+      else if (event->mask & IN_DELETE) { 
         //printf ("in delete\n");
         int status = unlink (copy_file_path);
         if (status == -1) {
           perror ("Unlink failed");
           //exit (EXIT_FAILURE);
         }
-      }
+      } 
       // If modify event
       // Copy over file IF the file does exist as a soft link, indiciating the
       // modified version has not already been copied
       else if (event->mask & IN_MODIFY) {
+        printf("modify event, going into copy files\n");
+        printf ("node in modify %s\n", event->filename);
         //if something is a softlink, then copy over file, else do nothing
-        struct stat buf;
-        lstat (copy_file_path, &buf);
-        if (S_ISLNK(buf.st_mode)) {
-          int status = unlink (copy_file_path);
-          //printf("2tried to delete: %s\n", copy_file_path);
-          if (status == -1) {
-            perror ("Unlink failed");
-            exit (EXIT_FAILURE);
-          }
-          copy_files (0, copy_file_path, backup_folder_path);
+        //struct stat sb;   
+        //if(lstat(event->filename, &sb) != -1)
+        //if(S_ISLNK(sb.st_mode)) {
+
+        char* backup_file_path = calloc(sizeof(char), sizeof(char) * MAX);
+        if (copy_file_path == NULL) {
+          perror("Calloc"); 
+          exit(EXIT_FAILURE);
         }
+        
+        strcat (backup_file_path, backup_folder_path);
+        strcat(backup_file_path, "/");
+        strcat(backup_file_path, event->filename);
+        
+        printf ("in soft link, file: %s\n", event->filename);
+        printf ("CATTTT %s\n", copy_file_path);
+          
+        int status = unlink (backup_file_path);
+          
+        if (status == -1) { 
+          perror ("Unlink failed");
+          exit (EXIT_FAILURE);
+        } 
+        
+        /* char* mod_filename = (char*)malloc(sizeof(char)*MAX); */
+        /* printf("event->filename:%s\n", event->filename); */
+        //strcat (backup_file_path, 
+        copy_files (0, copy_file_path, backup_file_path);
       }
     }
-  }
-  free(event);
+  }   
+  free(event);  
 }
 
-
+ 
 
 
 /*
 Works Cited: 
 http://man7.org/linux/man-pages/man7/inotify.7.html
+http://www.dreamincode.net/forums/topic/270452-tell-a-symbolic-link/
  */

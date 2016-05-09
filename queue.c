@@ -17,11 +17,12 @@ queue_t* queue_create() {
 
 // Put an element at the end of a queue
 void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
+  //printf("queue put filename: %s, mask:%u\n", filename, mask);
   node_t* newNode = (node_t*) malloc(sizeof(node_t));
   if(newNode == NULL) {
     perror("Malloc");
     exit(EXIT_FAILURE);
-  }
+  } 
   newNode->next = NULL;
   newNode->filename = filename;
   //printf ("queue put %s\n", newNode->filename);
@@ -35,6 +36,7 @@ void queue_put(queue_t* queue, const char* filename, uint32_t mask) {
   queue->tail->next = newNode;
   queue->tail = newNode;
   //printf ("end queue put %s\n", queue->tail->filename);
+  //printf("queuetail->filename: %s, tail->mask: %u\n", queue->tail->filename, queue->tail->mask);
 }
 
 
@@ -45,7 +47,7 @@ node_t* queue_take(queue_t* queue) {
   //printf ("queue take middle %s\n", queue->head->next->filename);
   if (queue->head == NULL) {
     return NULL;
-  }  
+  }   
   else if (queue->head == queue->tail) {
     queue->head = queue->tail = NULL;
     return node;

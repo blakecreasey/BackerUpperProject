@@ -26,4 +26,4 @@ queue_t* queue_create();
 void queue_put(queue_t* queue, const char* filename, uint32_t mask);
 node_t* queue_take(queue_t* queue);
 
-#endif
+#endif 

@@ -105,6 +105,8 @@ void copy_files (int is_dir, char* source, char* destination) {
   strcat (command, " ");
   strcat (command, destination);
 
+  printf ("%s command\n", command);
+
   // Call command using system function which executes a shell command
   int success = system (command);
   if (success == -1) {
