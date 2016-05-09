@@ -366,13 +366,7 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
       // Copy over file IF the file does exist as a soft link, indiciating the
       // modified version has not already been copied
       else if (event->mask & IN_MODIFY) {
-        printf("modify event, going into copy files\n");
-        printf ("node in modify %s\n", event->filename);
         //if something is a softlink, then copy over file, else do nothing
-        //struct stat sb;   
-        //if(lstat(event->filename, &sb) != -1)
-        //if(S_ISLNK(sb.st_mode)) {
-
         char* backup_file_path = calloc(sizeof(char), sizeof(char) * MAX);
         if (copy_file_path == NULL) {
           perror("Calloc"); 
@@ -382,9 +376,11 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
         strcat (backup_file_path, backup_folder_path);
         strcat(backup_file_path, "/");
         strcat(backup_file_path, event->filename);
-        
-        printf ("in soft link, file: %s\n", event->filename);
-        printf ("CATTTT %s\n", copy_file_path);
+
+        struct stat buf;
+        int x;
+        x = lstat (backup_file_path, &buf);
+        if (S_ISLNK(buf.st_mode)) {
           
         int status = unlink (backup_file_path);
           
@@ -397,8 +393,9 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
         /* printf("event->filename:%s\n", event->filename); */
         //strcat (backup_file_path, 
         copy_files (0, copy_file_path, backup_file_path);
+        }
       }
-    }
+    } 
   }   
   free(event);  
 }
@@ -409,5 +406,5 @@ void handle_queue(char* backup_folder_path, queue_t* queue, char* watched) {
 /*
 Works Cited: 
 http://man7.org/linux/man-pages/man7/inotify.7.html
-http://www.dreamincode.net/forums/topic/270452-tell-a-symbolic-link/
+stackoverflow.com/questions/3984948/man-2-stat-how-2-figure-out-if-a-file-is-a-link
  */
