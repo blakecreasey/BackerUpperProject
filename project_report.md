@@ -6,7 +6,7 @@ Madeleine Hardt
 
 Your report must give an overview of your system, describe the design and implementation of the system, and finally present an evaluation of your work. Details for each section are below.
 
-#####Overview 
+#####Overview (This is over 400 words right now and is probably too detailed, I am going to put some of it into the the design and implementation, we need to figure out what should go where, otherwise we will be super repeditive)
 Give a brief overview of your system’s design, the high level points of your implementation (e.g. ___ runs on the GPU, while the CPU handles ___ using a thread pool), and summarize your evaluation strategy and results.
 Your overview should not exceed 400 words.
 
@@ -30,6 +30,25 @@ For each element in the queue, one of three things is done:
 
 #####Design and Implementation
 
+The design and implementation section should explain the structure of your system and, importantly, the rationale for that structure. Design decisions include details like the data structures and algorithms you used, the places where you used concurrency or decided to run code on the GPU, and any libraries you may have used for your implementation.
 
+Try to organize this section in a top down manner: introduce the major components of your system, outline the responsibilities of each component, and then jump into the specifics of each component. You may want to repeat this process for sub-components if there are reasonable logical divisons within the major pieces of your project.
 
-#####Evaluation 
+Another strategy for organizing this section would be to break it down by concerns. System concerns include updating a file index in response to a file deletion, maintaining game state over a network connection, or other general requirements that may not map to specific units of code in your system. If you can identify a handful of high-level concerns it may make more sense to discuss the overall implementation structure and then describe how each concern fits into this structure.
+
+In describing your system, identify at least two principles from Butler Lampson’s Hints for Computer System Design that you used in building your system. In addition to identifying these hints, reflect on how they might (or might not) have helped you build a working implementation.
+
+Your design section should be approximately two pages of text, plus figures where appropriate.
+
+#####Evaluation
+
+You are required to present an empirical evaluation of your system. The details of this evaluation will depend on your project topic, but there are a few common requirements. First, you must describe the experimental set-up; this includes the hardware and software you are using for the evaluation, versions of any important software tools (including libraries), and the methods you use for gathering data (e.g. we measure execution time using the time command). Then, you should measure an appropriate aspect of your system’s behavior while varying some aspect of the load on your system or its environment. Make sure your evaluation section explains what you are trying to measure and discusses an interpretation of your results.
+
+For a file indexing project, you may want to measure the time it takes to issue a query as a function of the total size of the files in your index. For a project that uses a GPU, you might want to explore how varying block size changes the performance of your system. Do your best to pick an evaluation dimension that fits with your project goals; if the objective is to make a particular computation faster, then measure the speed of that computation. For some projects the evaluation will be less natural. I am happy to discuss this with you.
+
+Your evaluation section should include at least one graph with a minimum of 8 data points relating to your system (16 if you compare to another system).
+
+(Insert graph into report)
+
+To evaulate our system we decided to time our system, using the library <time.h>. We varied the number of files, by orders of 2. We kept our modifications constant, modifying one file each time and then calling for a backup. The timer recorded the time it took for our system to complete one full backup. Because there was only one modification, the time would be mostly dependent on creation of softlinks backwards and the rest of system costs. We plotted our data points to a graph and noticed a linear trend. Time increased linearly as we incremented number of files to be backed up. This is a positive trend. Theoretically we would want our system to maintain a constant speed with increased workload, which is what we appeared to have accomplished. To further our evaluation we would want to time our system under a varying number of creations, deletions and modifications.  
+
