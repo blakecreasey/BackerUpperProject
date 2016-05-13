@@ -3,13 +3,8 @@ Julia Fay
 Madeleine Hardt
 _________________________
 ### Project Report: The "Backer Upper System" (working title)
-
-Your report must give an overview of your system, describe the design and implementation of the system, and finally present an evaluation of your work. Details for each section are below.
-
-#####Overview (This is over 400 words right now and is probably too detailed, I am going to put some of it into the the design and implementation, we need to figure out what should go where, otherwise we will be super repeditive)
-Give a brief overview of your system’s design, the high level points of your implementation (e.g. ___ runs on the GPU, while the CPU handles ___ using a thread pool), and summarize your evaluation strategy and results.
-Your overview should not exceed 400 words.
 ____________________________
+#####Overview 
 Preconditions: 
 1. The user must specify the path of the backup directory which is hard-coded at the top of "main.c" and "backup_helpers.c".
 2. The user must run the program with a command line argument that specifies the path of the directory to be watched, e.g. "./main ~/Desktop/CSC213". The user should not end the path for the watched directory with a slash, for example, write "." for current directory not "./"
@@ -21,49 +16,22 @@ If it does not already exist, ~Desktop/backups is created at the onset of the pr
 Once the command to run the program with a specified watched directory has been executed, any changes made to files in that directory will be tracked. These events are received as signals from inotify and added as nodes (containing event type and file affected) to a queue. When the user terminates the program by pressing the "Enter" key, they are prompted to indicate whether they would like to back up the file changes made since the beginning of this program ran or not (by entering "1" to back up or "0" to discard the directory change events). If the user presses "0" the program ends.
 
 If the user presses "1", a new time-stamped backup directory is created within the main backup folder and symbolic links to every file in the most recent backup are made. These links go directly to each file in the most recent backup directory rather than creating a copy of each file because, until we iterate over the queue, we will not know whether modifications have been made to each particular file and so will not know whether a new copy is necessary. After the soft links have all been created, elements are taken off the front of the queue and appropriate actions are taken until it the queue empty.
-
-For each element in the queue, one of three things is done:
+______________
+#####Design and Implementation
+Our program consists of three c files of code: queue.c, backup_helpers.c, and main.c. Queue.c contains a basic queue implementation (queue_create, queue_put, queue_take) that we use to take inotify events by time received. Backup_helpers.c contains files to assist in the backup process (isDirectoryEmpty, create_backup_dir, copy_files, create_soft_links). IsDirectoryEmpty checks whether a directory is empty so we know whether an initial backup exists or not. Create_backup_dir creates the new directory with the appropriate time-stamp for the new backup. Copy_files copy either a specific file or all files in a specific directory to the new backup folder. Create_soft_links iterates through a directory creating soft links to every file in the new backup folder that link to every file in the specified directory. Main.c runs our program, containing the functions handle_events, handle_queue, and back_up. Handle_events, taken from the inotify man page, helps us monitor events signifying changes to the file system. Hanlde_queue iterate through the queue we created while watching our directory. For each element in the queue, one of three things is done:
 1. For a creation event, a copy of the created file is added to the new backup directory. 
 2. For a deletion event, the symbolic link to the previous version of the deleted file is deleted from the new backup directory.
 3. For a modification event, if the file of the same name in the new backup directory is not a symbolic link, we know we have already encounted a modification to this file and added a copy of the altered version to the new backup directory and therefore we have an updated version and do not need to make another copy. Otherwise, we delete the symbolic link and add a copy of the modified file to the new backup directory.
-
-
-
-______________
-#####Design and Implementation
-
-The design and implementation section should explain the structure of your system and, importantly, the rationale for that structure. Design decisions include details like the data structures and algorithms you used, the places where you used concurrency or decided to run code on the GPU, and any libraries you may have used for your implementation.
-
-Try to organize this section in a top down manner: introduce the major components of your system, outline the responsibilities of each component, and then jump into the specifics of each component. You may want to repeat this process for sub-components if there are reasonable logical divisons within the major pieces of your project.
-
-Another strategy for organizing this section would be to break it down by concerns. System concerns include updating a file index in response to a file deletion, maintaining game state over a network connection, or other general requirements that may not map to specific units of code in your system. If you can identify a handful of high-level concerns it may make more sense to discuss the overall implementation structure and then describe how each concern fits into this structure.
-
-In describing your system, identify at least two principles from Butler Lampson’s Hints for Computer System Design that you used in building your system. In addition to identifying these hints, reflect on how they might (or might not) have helped you build a working implementation.
-
-Your design section should be approximately two pages of text, plus figures where appropriate.
-_____________
-
-Our implementation utilized three primary data structures. The first was simply the structure returned by inotify when it detected an event. This structure contained a watch descriptor, a mask, a cookie, a len, and a name. From this data structure, we copied the mask which described the event that occured (delete, create, modify, etc...) and the name of the file or directory that the event occured on/in, and put that information in our own little data structure. In turn, we passed these data blocks into a queue, our third data structure. We utilized a queue because we wanted to see, in order, what happened to the file system. In some ways this is slower because we have to run over all of the changes, including many irrelevant ones (once you see an event saying that a file has been modified, all other modification events for that file are no longer helpful), but a stack would cause us to run into many consistency problems.
+Back_up checks the conditions surrounding the particular backup and uses the functions in back_helpers.c according to create a new backup directory with copied files and/or soft links. 
+Our implementation utilized three primary data structures. The first was simply the structure returned by inotify when it detected an event. This structure contained a watch descriptor, a mask, a cookie, a length, and a name. From this data structure, we copied the mask which described the event that occurred (delete, create, modify, etc...) and the name of the file or directory that the event occurred on/in, and put that information in our own queue node data structure. In turn, we passed these nodes into a queue, our third data structure. We utilized a queue because we wanted to see, in order, what happened to the file system. In some ways this is slower because we have to run over all of the changes, including many irrelevant ones (once you see an event saying that a file has been modified, all other modification events for that file are no longer helpful), but a stack would cause us to run into many consistency problems.
 
 We used a decent number of libraries in this project. Some of them are very predictable (stdio.h), and others are more specific to our project (<sys/inotify.h> <poll.h>). Inotify has been mentioned numerous times, as it played a central role in our program. It gave us information about files that were modified, and the ability to process that information. The poll.h include was part of the inotify functionality, as it enabled our program to poll the file system for changes, specifically as they were occuring. The other include that was very new to us was "<sys/stat.h>" which enabled us to call a function called "lstat." This function allowed us to determine whether or not a specific file was a softlink to another file. The regular "stat" call would just follow the softlink and return the information of the file being pointed at. Finally, the "<dirent.h>" library provided us with the abiltiy to recursively read through a single directory. 
 
 Lampson's hints:
 Lampson had two hints in particular that really influenced our thinking. One of these was "when in doubt, brute force," and the other was, "Keep it simple." Our project required a lot of path manipulation as we altered and passed in paths to make sure the program was always checking the right directory, and copying/linking to the right location. One possible route to all of these small file variations would have been to get really smart and find a super elegant solution. On the other hand, we could have used strcat to just build the directory paths when necessary--and that is exactly what we did. We kept it simple by just strcating what we needed, while simultaneously brute forcing our way to the correct path. Had we had more time or a specific need for elegance, we may have pursued a very sophisticated implementation, but Lampson's hints helped us get our program functioning earlier.  
-
-
-
-
 ____________
 #####Evaluation
-You are required to present an empirical evaluation of your system. The details of this evaluation will depend on your project topic, but there are a few common requirements. First, you must describe the experimental set-up; this includes the hardware and software you are using for the evaluation, versions of any important software tools (including libraries), and the methods you use for gathering data (e.g. we measure execution time using the time command). Then, you should measure an appropriate aspect of your system’s behavior while varying some aspect of the load on your system or its environment. Make sure your evaluation section explains what you are trying to measure and discusses an interpretation of your results.
-
-For a file indexing project, you may want to measure the time it takes to issue a query as a function of the total size of the files in your index. For a project that uses a GPU, you might want to explore how varying block size changes the performance of your system. Do your best to pick an evaluation dimension that fits with your project goals; if the objective is to make a particular computation faster, then measure the speed of that computation. For some projects the evaluation will be less natural. I am happy to discuss this with you.
-
-Your evaluation section should include at least one graph with a minimum of 8 data points relating to your system (16 if you compare to another system).
-_________________
-
 
 (See graph and data in the project_eval.xls file in this project's Github page).
 
-To evaulate our system we decided to time our system, using the library <time.h>. We varied the number of files, by orders of 2. We kept our modifications constant, modifying one file each time and then calling for a backup. The timer recorded the time it took for our system to complete one full backup. Because there was only one modification, the time would be mostly dependent on creation of softlinks backwards and the rest of system costs. We plotted our data points to a graph and noticed a linear trend. Time increased linearly as we incremented number of files to be backed up. This is a positive trend. Theoretically we would want our system to maintain a constant speed with increased workload, which is what we appeared to have accomplished. To further our evaluation we would want to time our system under a varying number of creations, deletions and modifications.  
-
+To evaulate our system we decided to time our system, using the library <time.h>. We varied the number of files, by orders of 2. We kept our modifications constant, modifying one file each time and then calling for a backup. The timer recorded the time it took for our system to complete one full backup, so we put the calls to check the time before and after the call to our backup function . Because there was only one modification, the time would be mostly dependent on creation of softlinks backwards and the rest of system costs. We plotted our data points to a graph and noticed a linear trend. Time increased linearly as we incremented number of files to be backed up. This is a positive trend. Theoretically we would want our system to maintain a constant speed with increased workload, which is what we appeared to have accomplished. To further our evaluation we would want to time our system under a varying number of creations, deletions and modifications.  
